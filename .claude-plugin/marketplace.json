@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ai-criteria",
+  "description": "Turn your AI's repeated mistakes into guardrails",
+  "owner": {
+    "name": "ai-criteria contributors"
+  },
+  "plugins": [
+    {
+      "name": "ai-criteria",
+      "description": "Log AI mistakes, roll up weekly, promote only recurring root causes into criteria. Local-first.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
