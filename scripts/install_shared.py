@@ -2,7 +2,9 @@
 """Install portable ai-criteria skills and global instructions without touching data."""
 import argparse
 import datetime
+import json
 import pathlib
+import shlex
 import shutil
 
 START = "<!-- ai-criteria:start -->"
@@ -16,6 +18,28 @@ def install(home, source):
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     backup = home / ".local/share/ai-criteria-backups" / timestamp
     files = {}
+    command = "python3 " + shlex.quote(str(target / "hooks/agent-hook.py"))
+    for relative, prompt_event, timeout in ((".codex/hooks.json", "UserPromptSubmit", 10),
+                                             (".gemini/settings.json", "BeforeAgent", 10000)):
+        path = home / relative
+        config = json.loads(path.read_text()) if path.exists() else {}
+        hooks = config.setdefault("hooks", {})
+        for event in ("SessionStart", prompt_event):
+            groups = []
+            for group in hooks.get(event, []):
+                group = dict(group)
+                group["hooks"] = [h for h in group["hooks"] if h.get("command") != command]
+                if group["hooks"]:
+                    groups.append(group)
+            handler = {"type": "command", "command": command, "timeout": timeout}
+            if prompt_event == "BeforeAgent":
+                handler["name"] = "ai-criteria-" + event
+            else:
+                handler["statusMessage"] = "ai-criteria: " + event
+                handler["additionalContextLimit"] = 0
+            groups.append({"hooks": [handler]})
+            hooks[event] = groups
+        files[path] = (json.dumps(config, indent=2, ensure_ascii=False) + "\n").encode()
     for folder in ("scripts", "hooks"):
         for src in (source / folder).glob("*.py"):
             files[target / folder / src.name] = src.read_bytes()
@@ -30,8 +54,9 @@ def install(home, source):
 # ai-criteria — shared with Claude Code, Codex and Gemini CLI
 
 All agents share `~/.ai-criteria` (or `AI_CRITERIA_HOME`); never create per-agent copies.
-At the start of every session, before substantive work, run:
-`python3 \"{target}/hooks/session-start.py\"`
+Native SessionStart hooks inject criteria automatically; prompt hooks signal possible corrections.
+Do not run the startup script again if the criteria were already injected by the hook.
+If hooks are unavailable or awaiting trust, run `python3 \"{target}/hooks/session-start.py\"` once.
 Treat its output as the user's accumulated criteria. Re-run when the working project changes.
 Before a consequential conclusion, use `ai-check`; check input requirements and judgment void conditions.
 When the user corrects an actually wrong conclusion, use `ai-log` in the same turn, once per correction.

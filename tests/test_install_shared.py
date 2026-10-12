@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import pathlib
 import tempfile
 import unittest
@@ -17,6 +18,9 @@ class SharedInstallTests(unittest.TestCase):
                 p = home / relative
                 p.parent.mkdir(parents=True)
                 p.write_text("Existing instruction\n")
+            settings = home / ".gemini/settings.json"
+            settings.write_text(json.dumps({"telemetry": {"enabled": False}, "hooks": {
+                "BeforeAgent": [{"hooks": [{"type": "command", "command": "echo existing"}]}]}}))
             store = home / ".ai-criteria"
             store.mkdir()
             (store / "inbox.jsonl").write_text("existing-data\n")
@@ -31,6 +35,15 @@ class SharedInstallTests(unittest.TestCase):
             self.assertEqual(len(skills), 5)
             for skill in skills:
                 self.assertNotIn("CLAUDE_PLUGIN_ROOT", skill.read_text())
+            settings_data = json.loads(settings.read_text())
+            self.assertFalse(settings_data["telemetry"]["enabled"])
+            handlers = [h for g in settings_data["hooks"]["BeforeAgent"] for h in g["hooks"]]
+            self.assertEqual(len(handlers), 2)
+            self.assertEqual(handlers[0]["command"], "echo existing")
+            codex_hooks = json.loads((home / ".codex/hooks.json").read_text())["hooks"]
+            self.assertEqual(len(codex_hooks["SessionStart"]), 1)
+            self.assertEqual(codex_hooks["SessionStart"][0]["hooks"][0]["timeout"], 10)
+            self.assertEqual(settings_data["hooks"]["SessionStart"][0]["hooks"][0]["timeout"], 10000)
 
     def test_unrelated_skill_aborts_before_writes(self):
         with tempfile.TemporaryDirectory() as tmp:

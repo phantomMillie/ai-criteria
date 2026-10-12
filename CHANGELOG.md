@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- Shared installer for Claude Code, Codex and Gemini CLI using one existing local store.
+- Native Codex SessionStart/UserPromptSubmit and Gemini SessionStart/BeforeAgent hooks with a common JSON adapter.
+- Preserve and back up existing global settings; idempotent hook merging and instruction fallback.
+- 20 tests covering adapters, project scoping, fail-open behavior and installation safety.
+
 ## 0.4.0
 - Evidence tiers: pending / provisional (2 cases, 2 days) / confirmed (3 cases, 3 days) / global (2+ projects) / retired. Independence is counted in distinct days, not raw cases
 - New `evidence` command scores a `why` cluster; `candidates` shows ids and per-tag upper bounds

@@ -70,6 +70,29 @@ Tune every threshold in `~/.ai-criteria/config.json`:
   "confirmed_min_days": 3, "global_min_projects": 2, "retire_counterexamples": 2, "rollup_nudge_at": 5 }
 ```
 
+## Share with Codex and Gemini CLI
+
+After installing the Claude Code plugin, run from this repository:
+
+```bash
+python3 scripts/install_shared.py
+```
+
+All three agents share `~/.ai-criteria` (use the same `AI_CRITERIA_HOME` override everywhere).
+The installer adds five portable skills under `~/.agents/skills` and installs the runtime under
+`~/.local/share/ai-criteria`. Existing global instructions and settings are preserved and backed up.
+Re-running the installer does not duplicate its hooks or instruction blocks.
+
+Native `SessionStart` hooks inject the current project criteria automatically. Claude and Codex
+use `UserPromptSubmit` to detect correction signals; Gemini uses `BeforeAgent`. All reuse the same
+Claude hook logic through a JSON adapter. Signals remind the model to evaluate and log a correction;
+they never create cases themselves. Hook errors do not block sessions or user prompts.
+
+Codex hooks are merged into `~/.codex/hooks.json`; review and trust them using `/hooks` before use.
+The installer does not grant trust automatically. Gemini hooks are merged into `~/.gemini/settings.json`.
+Restart the agents after installation. Global instructions provide a manual fallback if hooks cannot run,
+without re-reading criteria already injected by hooks. Host approvals and skill activation consent still apply.
+
 ## What a criterion looks like
 
 > *Illustrative example.*
