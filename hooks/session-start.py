@@ -15,7 +15,7 @@ try:
         if body:
             parts.append(
                 "## Criteria this user has accumulated from your past mistakes\n\n"
-                "Only patterns confirmed on 2+ cases are listed. Before concluding, check each judgment "
+                "Only root causes that repeated on separate days are listed (provisional = 2, confirmed = 3+). Before concluding, check each judgment "
                 "criterion's applies-when / void-when. If an input criterion is unmet, ask the user for "
                 "the missing input first instead of guessing.\n\n" + body)
     pending = len(ailog.read_jsonl(p.inbox)) if p.inbox.exists() else 0
