@@ -19,7 +19,7 @@ try:
                 "criterion's applies-when / void-when. If an input criterion is unmet, ask the user for "
                 "the missing input first instead of guessing.\n\n" + body)
     pending = len(ailog.read_jsonl(p.inbox)) if p.inbox.exists() else 0
-    if pending >= 5:
+    if pending >= ailog.load_config(p)["rollup_nudge_at"]:
         parts.append("ai-criteria: %d logged mistakes are waiting in the inbox. At a natural pause, "
                      "suggest `/ai-rollup` then `/ai-criteria`." % pending)
     if parts:

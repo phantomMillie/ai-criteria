@@ -1,7 +1,7 @@
 {
   "name": "ai-criteria",
   "description": "Log your AI's repeated mistakes as 3-field cases, roll them up weekly, and promote only recurring root causes into input/judgment criteria with applies-when / void-when. Local-first, zero dependencies.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "keywords": [
     "ai-quality",

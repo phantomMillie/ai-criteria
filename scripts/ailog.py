@@ -8,9 +8,10 @@ Everything lives in a hidden folder in your home directory: `~/.ai-criteria/`
   ailog.py log <gave> <actual> <why> --tag T [--project P]
   ailog.py status
   ailog.py rollup [--dry-run] [--keep]   inbox -> weekly case file
-  ailog.py candidates [--min 2]          every `why`, grouped, for promotion review
+  ailog.py candidates                    every `why`, grouped, for promotion review
+  ailog.py evidence <id>...              real tier of one `why` cluster (distinct days, projects)
   ailog.py criteria [--project P]        current criteria (project-scoped ones only in that project)
-  ailog.py search <query> [--tag T] [--project P]
+  ailog.py search <query> [--tag T] [--project P] [--since DATE]
   ailog.py stats [--weeks 8]
   ailog.py export [--out FILE]           everything as JSON
   ailog.py import <FILE>                 merge an export (other machine -> this one); duplicate ids skipped
@@ -32,7 +33,7 @@ try:
 except ImportError:  # Windows
     fcntl = None
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 SCHEMA = 1
 
 DEFAULT_TAGS = [
@@ -68,6 +69,17 @@ CRITERIA_TEMPLATE = """\
 <!-- Criteria killed by counter-examples. Kept so they are not revived. -->
 """
 
+# Promotion thresholds. Override in ~/.ai-criteria/config.json (only the keys you want to change).
+DEFAULT_CONFIG = {
+    "provisional_min_cases": 2,      # same `why` on this many cases ...
+    "provisional_min_days": 2,       # ... on this many distinct days -> provisional criterion
+    "confirmed_min_cases": 3,
+    "confirmed_min_days": 3,         # -> confirmed criterion
+    "global_min_projects": 2,        # a `why` must appear in this many projects to be global
+    "retire_counterexamples": 2,     # counter-examples that retire a criterion (1 demotes it to provisional)
+    "rollup_nudge_at": 5,            # SessionStart suggests a rollup at this inbox size
+}
+
 # Keep secrets out of stored cases. Common shapes only — not exhaustive.
 REDACT = [
     (re.compile(r"sk-[A-Za-z0-9_\-]{16,}"), "sk-***"),
@@ -93,7 +105,34 @@ class Paths:
         self.criteria = self.root / "criteria.md"
         self.tags = self.root / "tags.json"
         self.meta = self.root / "meta.json"
+        self.config = self.root / "config.json"
         self.lock = self.root / ".lock"
+
+
+def load_config(p):
+    cfg = dict(DEFAULT_CONFIG)
+    if p.config.exists():
+        try:
+            cfg.update({k: v for k, v in json.loads(p.config.read_text(encoding="utf-8")).items() if k in cfg})
+        except ValueError:
+            sys.stderr.write("warning: config.json is not valid JSON, using defaults\n")
+    return cfg
+
+
+def evidence_tier(cases, cfg):
+    """Tier for ONE cluster of cases (same `why`). Independence = distinct calendar days, not raw count:
+    several corrections in one session are one observation."""
+    days = {c["ts"][:10] for c in cases}
+    projects = {c.get("project") for c in cases if c.get("project")}
+    n = len(cases)
+    if n >= cfg["confirmed_min_cases"] and len(days) >= cfg["confirmed_min_days"]:
+        tier = "confirmed"
+    elif n >= cfg["provisional_min_cases"] and len(days) >= cfg["provisional_min_days"]:
+        tier = "provisional"
+    else:
+        tier = "pending"
+    scope = "global" if len(projects) >= cfg["global_min_projects"] else "project"
+    return {"cases": n, "days": len(days), "projects": sorted(projects), "tier": tier, "scope": scope}
 
 
 def ensure_store(p):
@@ -105,6 +144,8 @@ def ensure_store(p):
     if not p.meta.exists():
         write_json(p.meta, {"schema": SCHEMA, "version": VERSION,
                             "created": datetime.date.today().isoformat()})
+    if not p.config.exists():
+        write_json(p.config, DEFAULT_CONFIG)
     if not p.tags.exists():
         write_json(p.tags, {t: d for t, d in DEFAULT_TAGS})
     if not p.criteria.exists():
@@ -329,17 +370,38 @@ def cmd_candidates(a, p):
     for r in rows:
         for t in r["tags"]:
             bytag.setdefault(t, []).append(r)
-    print("%d cases / %d tags / promotion line %d\n" % (len(rows), len(bytag), a.min))
+    cfg = load_config(p)
+    print("%d cases on %d days / %d tags\nprovisional >= %d cases & %d days, confirmed >= %d cases & %d days (same `why`)\n" % (
+        len(rows), len({r["ts"][:10] for r in rows}), len(bytag), cfg["provisional_min_cases"],
+        cfg["provisional_min_days"], cfg["confirmed_min_cases"], cfg["confirmed_min_days"]))
     for t in sorted(bytag, key=lambda x: -len(bytag[x])):
         rs = bytag[t]
-        print("## #%s  %d  [%s]" % (t, len(rs), "review for promotion" if len(rs) >= a.min else "pending"))
+        ev = evidence_tier(rs, cfg)
+        print("## #%s  %d cases / %d days / %d project(s)  [tag-level upper bound: %s]" % (
+            t, ev["cases"], ev["days"], len(ev["projects"]), ev["tier"]))
         for r in rs:
-            print("- %s (%s) @%s" % (r["ts"], r["week"], r.get("project") or "?"))
+            print("- %s %s (%s) @%s" % (r.get("id", "?"), r["ts"], r["week"], r.get("project") or "?"))
             print("  why: %s" % (r["why"] or "(none)"))
             print("  gave: %s" % r["gave"])
         print()
-    print("Note: same tag with a different `why` is a different criterion. Never promote by tag count.")
+    print("Note: tag-level numbers are only an upper bound. Re-cluster by `why`, then run")
+    print("      `ailog.py evidence <id> <id> ...` on each cluster to get its real tier. Never promote by tag count.")
     print("      A `why` seen in only one project is a project criterion (`@project`). It needs 2+ projects to become global.")
+
+
+def cmd_evidence(a, p):
+    cfg = load_config(p)
+    by_id = {c["id"]: c for c in all_cases(p) + read_jsonl(p.inbox)}
+    missing = [i for i in a.ids if i not in by_id]
+    if missing:
+        sys.exit("unknown case id(s): %s" % ", ".join(missing))
+    ev = evidence_tier([by_id[i] for i in a.ids], cfg)
+    print("%d cases / %d distinct days / projects: %s" % (ev["cases"], ev["days"], ", ".join(ev["projects"]) or "-"))
+    print("tier: %s   scope: %s" % (ev["tier"], ev["scope"]))
+    if ev["tier"] == "pending":
+        print("-> keep under `## Pending`")
+    else:
+        print("-> write as `### %s-n [%s]%s  Title`" % ("J" , ev["tier"], "" if ev["scope"] == "global" else " @" + (ev["projects"][0] if ev["projects"] else "project")))
 
 
 def cmd_criteria(a, p):
@@ -355,6 +417,8 @@ def cmd_search(a, p):
         if a.tag and norm_tag(a.tag) not in r["tags"]:
             continue
         if a.project and r.get("project") != a.project:
+            continue
+        if a.since and r["ts"][:10] < a.since:
             continue
         hay = " ".join([r["gave"], r["actual"], r["why"], " ".join(r["tags"])]).lower()
         if q and q not in hay:
@@ -477,10 +541,12 @@ def build_parser():
     s = sub.add_parser("rollup")
     s.add_argument("--dry-run", action="store_true"); s.add_argument("--keep", action="store_true")
     s.set_defaults(fn=cmd_rollup)
-    s = sub.add_parser("candidates"); s.add_argument("--min", type=int, default=2); s.set_defaults(fn=cmd_candidates)
+    sub.add_parser("candidates").set_defaults(fn=cmd_candidates)
+    s = sub.add_parser("evidence"); s.add_argument("ids", nargs="+"); s.set_defaults(fn=cmd_evidence)
     s = sub.add_parser("criteria"); s.add_argument("--project", default=""); s.set_defaults(fn=cmd_criteria)
     s = sub.add_parser("search"); s.add_argument("query", nargs="?", default="")
-    s.add_argument("--tag", default=""); s.add_argument("--project", default=""); s.set_defaults(fn=cmd_search)
+    s.add_argument("--tag", default=""); s.add_argument("--project", default="")
+    s.add_argument("--since", default="", help="YYYY-MM-DD: only cases on/after (did it recur after promotion?)"); s.set_defaults(fn=cmd_search)
     s = sub.add_parser("stats"); s.add_argument("--weeks", type=int, default=8); s.set_defaults(fn=cmd_stats)
     s = sub.add_parser("export"); s.add_argument("--out", default=""); s.set_defaults(fn=cmd_export)
     s = sub.add_parser("import"); s.add_argument("file"); s.set_defaults(fn=cmd_import)

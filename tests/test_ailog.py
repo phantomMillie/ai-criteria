@@ -65,7 +65,7 @@ class Store(unittest.TestCase):
         self.log("same premise"); self.log("same premise", project="other")
         run(self.root, "rollup")
         out = run(self.root, "candidates")
-        self.assertIn("review for promotion", out)
+        self.assertIn("[tag-level upper bound:", out)
         self.assertIn("@other", out)
 
     def test_criteria_scope_filter(self):
@@ -99,6 +99,30 @@ class Store(unittest.TestCase):
         p = ailog.Paths(other)
         self.assertEqual(len(ailog.all_cases(p)), 1)
         self.assertEqual(len(ailog.read_jsonl(p.inbox)), 1)
+
+    def test_evidence_tiers_use_distinct_days(self):
+        cfg = ailog.DEFAULT_CONFIG
+        mk = lambda ts, pr="a": {"ts": ts, "project": pr}
+        same_day = [mk("2026-10-01 09:00"), mk("2026-10-01 15:00"), mk("2026-10-01 18:00")]
+        self.assertEqual(ailog.evidence_tier(same_day, cfg)["tier"], "pending")       # 3 cases, 1 day
+        two = [mk("2026-10-01 09:00"), mk("2026-10-02 09:00")]
+        self.assertEqual(ailog.evidence_tier(two, cfg)["tier"], "provisional")
+        three = two + [mk("2026-10-05 09:00", "b")]
+        ev = ailog.evidence_tier(three, cfg)
+        self.assertEqual((ev["tier"], ev["scope"]), ("confirmed", "global"))
+        self.assertEqual(ailog.evidence_tier(two[:1], cfg)["tier"], "pending")
+
+    def test_config_override_and_evidence_cli(self):
+        self.log("w"); run(self.root, "rollup")
+        ids = [c["id"] for c in ailog.all_cases(ailog.Paths(self.root))]
+        self.assertIn("pending", run(self.root, "evidence", *ids))
+        (self.root / "config.json").write_text('{"provisional_min_cases": 1, "provisional_min_days": 1}')
+        self.assertIn("provisional", run(self.root, "evidence", *ids))
+
+    def test_search_since(self):
+        self.log("recent")
+        self.assertIn("1 match", run(self.root, "search", "recent", "--since", "2000-01-01"))
+        self.assertIn("0 match", run(self.root, "search", "recent", "--since", "2999-01-01"))
 
     def test_broken_line_skipped(self):
         self.log()

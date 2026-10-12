@@ -8,19 +8,37 @@ description: Promote repeated `why`s from the case files into input/judgment cri
 ## 1. Material
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" candidates --min 2
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" candidates
 ```
 
 Output is grouped by tag, but **never promote by tag.** Same tag with a different `why` is a different criterion.
 Read the `why` lines only and **re-cluster them yourself.** Exclude `why: unknown`.
 
-## 2. Promotion test
+## 2. Promotion test — evidence tiers
 
-The same broken premise on **2+ cases** — only then. One case waits for next week.
-Look at `@project`. Seen in one project only → write it as that project's criterion
-(`### J-3 @my-app  Title` — `@` items are injected only in that project's sessions).
-**Same `why` in 2+ projects → global criterion**; write its void-when more strictly the wider it reaches.
-Before promoting, **check whether it is a counter-example of an existing criterion.** If so, retire/replace that one instead of adding a new one.
+Cluster the `why` lines yourself, then measure **each cluster** (never a tag):
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" evidence <case-id> <case-id> ...
+```
+
+Independence is counted in **distinct calendar days**, not raw cases: several corrections in one session are one observation.
+Thresholds are in `~/.ai-criteria/config.json` (defaults below).
+
+| Tier | Same `why` | Action |
+|---|---|---|
+| pending | 1 case, or 2+ cases on 1 day | list under `## Pending` with the current count |
+| provisional | 2+ cases on 2+ days | write `### J-n [provisional]`; write the void-when strictly |
+| confirmed | 3+ cases on 3+ days | write `### J-n [confirmed]` |
+| global | the same `why` in 2+ projects | no `@project`; until then title it `@project` |
+| retire | 2 counter-examples (1 = demote to provisional) | move under `## Retired` |
+
+A wrong criterion is cheap (a slightly noisy sentence, and its void-when filters it); a late criterion is expensive (the mistake keeps happening).
+That is why provisional is low and confirmed is strict.
+
+Before promoting, **check whether the cluster is a counter-example of an existing criterion.** If so, demote/retire that one instead of adding a new one.
+After promoting, measure the only evidence that matters — recurrence:
+`python3 ".../ailog.py" search "<phrase>" --since <promotion date>`. Recurred although the criterion was satisfied → it is insufficient, add conditions.
 
 The criteria file is `~/.ai-criteria/criteria.md`. Edit it directly.
 
@@ -29,7 +47,7 @@ The criteria file is `~/.ai-criteria/criteria.md`. Edit it directly.
 A criterion is not a "should" sentence. Cases must be able to prove it true or false.
 
 ```markdown
-### J-1  In the old source but not in the new one → "not migrated"
+### J-1 [confirmed]  In the old source but not in the new one → "not migrated"
 
 - Applies when: the input contains NO removal-decision source (comment, spec, separate ticket)
 - Void when: any removal-decision source exists. Do not use this rule; use 3 buckets (not migrated / removed on purpose / unknown)
@@ -56,7 +74,7 @@ Leave the **why-clusters and current counts** under `## Pending`. Do not end wit
 that way a single extra case next week promotes immediately.
 
 ```markdown
-## Pending (promotion line: 2 cases)
+## Pending
 
 - "one correction = structural-error premise": 1 case (2026-W37)
 - "spec sentence = confirmed requirement": 1 case (2026-W37)

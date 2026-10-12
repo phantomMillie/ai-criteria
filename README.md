@@ -43,16 +43,39 @@ you correct the AI ──▶ /ai-log        3 fields: gave / actual / WHY   (the
 Four rules make it different from a notes file:
 
 1. **Log the broken premise, not the outcome.** `why` = *"treated a spec sentence as a confirmed requirement"*, not *"misread the doc"*.
-2. **Promote on repetition.** The same `why` on **2+ cases**. Tag counts don't count — same tag, different `why` is a different bug.
+2. **Promote on independent repetition.** The same `why` on **2+ cases on 2+ different days** → provisional, **3+ on 3+ days** → confirmed. Three corrections in one afternoon are one observation. Tag counts don't count — same tag, different `why` is a different bug.
 3. **A rule must be falsifiable.** Every criterion has an **applies-when** and a **void-when**, so real cases can prove it right or wrong.
 4. **Rules die.** A counter-example retires a criterion. If your list only ever grows, something is wrong — and the tool tells you so.
+
+## Evidence tiers
+
+| Tier | Same `why` | What happens |
+|---|---|---|
+| pending | 1 case, or many on 1 day | parked under `## Pending` with its count |
+| provisional | 2+ cases, 2+ days | injected, marked `[provisional]`, strict void-when |
+| confirmed | 3+ cases, 3+ days | injected as a normal criterion |
+| global | same `why` in 2+ projects | otherwise the criterion is `@project`-scoped |
+| retired | 2 counter-examples (1 demotes) | moved under `## Retired`, never revived |
+
+A wrong rule is cheap — it is one slightly noisy sentence and its void-when filters it. A late rule is expensive — the mistake keeps happening.
+So the bar for *provisional* is low and the bar for *confirmed* is strict. The only evidence that matters afterwards is **recurrence**:
+`ailog.py search "<phrase>" --since <promotion date>`.
+
+Rollup is not worth running under ~5 cases; clusters usually only show up around 10+ cumulative cases.
+`ailog.py evidence <id> <id> …` computes the real tier of a cluster (distinct days, projects).
+Tune every threshold in `~/.ai-criteria/config.json`:
+
+```json
+{ "provisional_min_cases": 2, "provisional_min_days": 2, "confirmed_min_cases": 3,
+  "confirmed_min_days": 3, "global_min_projects": 2, "retire_counterexamples": 2, "rollup_nudge_at": 5 }
+```
 
 ## What a criterion looks like
 
 > *Illustrative example.*
 
 ```markdown
-### J-1  In the old source but not the new one → "not migrated"
+### J-1 [confirmed]  In the old source but not the new one → "not migrated"
 
 - Applies when: the input contains NO removal-decision source (comment, spec, separate ticket)
 - Void when:    any removal-decision source exists. Use 3 buckets instead
@@ -87,7 +110,7 @@ Verify with `python3 scripts/ailog.py doctor`.
 |---|---|
 | Tell the AI *"that's wrong, you missed the second file"* | A hook notices the correction; the AI logs one case, same turn |
 | `/ai-rollup` (weekly) | Inbox → `cases/2026-W42.jsonl` (+ readable `.md`), then continues into `/ai-criteria` |
-| `/ai-criteria` | Clusters every `why`, promotes repeats, retires broken rules, parks the rest under *Pending* |
+| `/ai-criteria` | Clusters every `why`, measures each cluster's tier, promotes / retires, parks the rest under *Pending* |
 | *(automatic)* new session | Current criteria for **this project** are injected. 5+ unrolled cases → it suggests a rollup |
 | `/ai-check` | Before comparing, counting, or "freezing" something: input gaps first, then each judgment rule's void-when |
 | `/ai-recall` | Search past cases, stats, store health check, export/import |
@@ -103,6 +126,7 @@ Everything is in a **hidden folder in your home directory**, mode `700`:
 │   ├── 2026-W42.jsonl    weekly cases (source of truth)
 │   └── 2026-W42.md       same, human-readable
 ├── criteria.md           your current criteria (+ Pending, Retired)
+├── config.json           promotion thresholds
 ├── tags.json             root-cause tags (add your own)
 └── meta.json
 ```
@@ -120,9 +144,10 @@ Everything is in a **hidden folder in your home directory**, mode `700`:
 python3 scripts/ailog.py log "gave" "actual" "why" --tag wrong-premise [--project name]
 python3 scripts/ailog.py status
 python3 scripts/ailog.py rollup [--dry-run|--keep]
-python3 scripts/ailog.py candidates [--min 2]
+python3 scripts/ailog.py candidates
+python3 scripts/ailog.py evidence <case-id> <case-id> ...
 python3 scripts/ailog.py criteria [--project name]
-python3 scripts/ailog.py search "query" [--tag T] [--project P]
+python3 scripts/ailog.py search "query" [--tag T] [--project P] [--since DATE]
 python3 scripts/ailog.py stats [--weeks 8]
 python3 scripts/ailog.py export [--out file.json]
 python3 scripts/ailog.py import file.json
