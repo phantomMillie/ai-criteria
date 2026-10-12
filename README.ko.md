@@ -66,6 +66,27 @@ AI를 고쳐 줌 ──▶ /ai-log       냈다 / 실제 / 왜(WHY) 3칸 (훅이
 
 ## 사용
 
+### Claude Code · Codex · Gemini CLI 공용 설치
+
+Claude Code 플러그인을 설치한 뒤, 이 저장소에서 실행한다:
+
+```bash
+python3 scripts/install_shared.py
+```
+
+세 도구 모두 기존 `~/.ai-criteria/`를 사용한다(`AI_CRITERIA_HOME`도 동일하게 설정해야 한다).
+Codex와 Gemini CLI는 공용 `~/.agents/skills/ai-*` 스킬 5개를 발견한다.
+설치기는 Claude 전용 스킬 경로를 독립적인 `~/.local/share/ai-criteria` 경로로 바꾸고,
+`~/.codex/AGENTS.md`와 `~/.gemini/GEMINI.md`에 관리 블록을 추가한다.
+기존 지침은 보존하고 변경 전 파일은 `~/.local/share/ai-criteria-backups/`에 백업한다.
+재실행해도 블록은 중복되지 않는다. 기존 동명 사용자 스킬은 덮어쓰지 않는다.
+
+새 세션부터 적용한다. Codex·Gemini는 전역 지침에 따라 세션 시작 때 현행 기준을 읽고,
+사용자 정정 시 ai-log를 호출한다. 이것은 모델이 따르는 지침이며 Claude의 자동 이벤트 훅과는 다르다.
+Gemini의 스킬 활성화 동의 등 호스트의 승인 정책은 그대로 따른다.
+Claude는 기존 플러그인 훅을 계속 사용하므로 중복 설치할 필요가 없다.
+설치기는 기록·태그·기준 데이터를 변경하거나 자동 승격하지 않는다.
+
 | 하는 일 | 일어나는 일 |
 |---|---|
 | AI에게 "그거 틀렸어, 두 번째 파일 빠뜨렸잖아" | 훅이 지적을 감지 → AI가 같은 턴에 한 건 적립 |
