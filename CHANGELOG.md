@@ -5,6 +5,8 @@
 - Native Codex SessionStart/UserPromptSubmit and Gemini SessionStart/BeforeAgent hooks with a common JSON adapter.
 - Preserve and back up existing global settings; idempotent hook merging and instruction fallback.
 - 20 tests covering adapters, project scoping, fail-open behavior and installation safety.
+- `ai-log`: internal pre-log quality gate (6-step clarity check; atomicity counted by independent wrong premises, not sentences; pick one cause only if the record and the user's correction single it out, else exactly `unknown`; hypothesis-style counter-check; clearer `actual` vs cause-guess boundary (no error narrative, no unrun check cited as source); two unranked errors in one correction → `unknown`; a missing trace is not a cause; the one-line report states the logged `why`; `actual` facts/sources are established before the log call, existing evidence is not re-verified, user claims are kept apart from verified facts and unverified items are marked). No data contract, hook, `ai-check`, rollup or promotion change
+- `tests/fixtures/ai-log-quality.md`: 10 golden cases (1-7, 7a, 7b, 7c) for the gate (behaviour fixtures, not run by unittest); 7b verdict reserved as ambiguous, 7c clarifies it (not run)
 
 ## 0.4.0
 - Evidence tiers: pending / provisional (2 cases, 2 days) / confirmed (3 cases, 3 days) / global (2+ projects) / retired. Independence is counted in distinct days, not raw cases
