@@ -77,4 +77,15 @@ What you wrote down is the user's word, so they get to see it. Right after `hear
 That line is the same device `ai-clarify` uses for a reading: the user can fix the word's form or its meaning on the spot,
 before it piles up wrong. If they do, run `hear` again with the fixed form; the earlier row stays as data.
 
-Report the case in one line afterwards, then this line. No apology, no promise.
+## Show the record
+
+A silent log looks like no log. Right after the command, before any other work, one line in the user's language,
+exact form — the case first, then the word line if there was one:
+
+```text
+기록: 설치 질문을 부품 확인으로 대답함 — 핵심 질문(주소만 주고 설치하면 바로 쓰이나)을 안 봄.
+"올려" = origin main에 푸시, 로 기억할게.
+```
+
+`기록:` + the `why` in the user's words. Not "기록하고 나서…" followed by the next task: the user must see what was
+written before you move on. No apology, no promise.

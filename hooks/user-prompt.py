@@ -16,7 +16,7 @@ Judge this prompt yourself: is the user unhappy with, doubting, or correcting so
 If yes, log ONE case with the `ai-log` skill **before other work, in this same turn** — do not defer it (deferred means lost). Do not ask permission.
 - `why` is the broken premise, not a restatement of the conclusion. ("did not read the doc" is wrong / "treated a spec sentence as a confirmed requirement" is right)
 - If the correction is about what one of their words meant, or about whether you should have asked, also record it with `ailog.py hear` as the `ai-log` skill describes: the phrase is the user's own word in its shortest form, and you say the recorded word back in one line so they can fix it.
-- No apologies or promises. Record the case, then report it in one line.
+- No apologies or promises. Record the case, then show it before any other work, one line in the user's language: `기록: <why>` (a silent log looks like no log).
 If it is only a question, a plain request, or a re-check, ignore this signal. Not a correction means no entry.
 </ai-criteria-signal>"""
 
