@@ -61,7 +61,10 @@ try:
             "A `cost` entry replaces the default cheap/costly call for that action. "
             "`\"a\" ≈ \"b\"` means a was read as the learned word b: use b's meaning for a and state it; "
             "when you read a new word through a learned one yourself, record it "
-            "(`ailog.py hear \"<word>\" \"<learned word>\" --kind same --source read`).\n\n" + words)
+            "(`ailog.py hear \"<word>\" \"<learned word>\" --kind same --source read --on <target>`). "
+            "`(on: ...)` is what the word was applied to so far; on a different kind of target "
+            "(prose vs code, a file vs a PR) the meaning may not carry: say so in the reading line "
+            "and keep the change small.\n\n" + words)
     if ailog.has_criteria(p):
         body = ailog.criteria_text(p, project)
         if body:

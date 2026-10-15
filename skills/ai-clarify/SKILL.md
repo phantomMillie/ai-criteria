@@ -33,13 +33,19 @@ Run them in order. Most instructions pass through in seconds with nothing to sho
    state the reading in one line, and record that you read it that way:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" hear "깔끔하게" "정리" --kind same --source read
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" hear "깔끔하게" "정리" --kind same --source read --on notes.md
    ```
 
    That is a relation (`"깔끔하게" ≈ "정리"`), not a meaning: it says nothing new about the user, only how you
    read them. Uncorrected readings pile up by distinct days like everything else, and next time the lookup for
-   "깔끔하게" walks to "정리" on its own. A correction on that word becomes a counter-example and breaks the link.
-   Nothing to record when you apply a learned word to its own form.
+   "깔끔하게" walks to "정리" on its own (chains too: "말끔하게" ≈ "깔끔하게" ≈ "정리"). Any correction of that
+   word breaks the link. Record it every time you read that way, including when the relation is already listed:
+   that is how it hardens. Nothing to record when you apply a learned word to its own form.
+
+   **Carry the target.** `--on` is what the word was applied to (notes.md, a .py file, a PR). A meaning learned on
+   prose ("정리" = delete duplicate lines, on notes.md) does not automatically hold on code, where a duplicate
+   line can be behavior. When the target kind differs from every `(on: ...)` listed, say so in the reading line
+   ("정리 was learned on notes; applying it to util.py as: ...") and keep the change small and reversible.
 6. **Check input criteria.** An unmet `I-` criterion is a split too (`ailog.py criteria`).
 7. **Price the split.** Would a wrong guess be costly?
    - costly: **goes out** (push, PR, deploy, send, publish) · **deletes or overwrites** (rm, reset, DB) ·

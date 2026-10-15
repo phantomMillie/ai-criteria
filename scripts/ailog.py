@@ -309,7 +309,7 @@ def norm_word(s):
     return " ".join((s or "").split()).lower()
 
 
-def make_word(phrase, meant, project, kind="meaning", source="correction", read_as="", after="", now=None):
+def make_word(phrase, meant, project, kind="meaning", source="correction", read_as="", after="", on="", now=None):
     now = now or datetime.datetime.now()
     return {
         "id": now.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4],
@@ -317,6 +317,7 @@ def make_word(phrase, meant, project, kind="meaning", source="correction", read_
         "project": project, "kind": kind, "source": source,
         "phrase": redact(phrase.strip()), "meant": redact(meant.strip()),
         "read_as": redact(read_as.strip()), "after": redact(after.strip()),
+        "on": redact(on.strip()),          # what it was applied to (notes.md, a .py file, a PR ...): not a key
     }
 
 
@@ -331,11 +332,16 @@ def lexicon_edges(rows, cfg):
     edges = []
     for (kind, phrase, after, meant), support in groups.items():
         ev = evidence_tier(support, cfg)
-        # A `same` edge (a ≈ b) is countered by a correction of a that was read as b: a meaning row, not a same row.
-        counter_kind = "meaning" if kind == "same" else kind
-        counters = [r for r in rows if r.get("kind", "meaning") == counter_kind and norm_word(r["phrase"]) == phrase
-                    and norm_word(r.get("after")) == after and norm_word(r.get("read_as")) == meant
-                    and (ev["scope"] == "global" or r.get("project") in ev["projects"])]
+        if kind == "same":
+            # a ≈ b is countered by any correction of a: the user just said what a means, and it was not
+            # "the same as b" or they would not have corrected. No exact read_as text required.
+            counters = [r for r in rows if r.get("kind", "meaning") == "meaning" and r.get("source") == "correction"
+                        and norm_word(r["phrase"]) == phrase
+                        and (ev["scope"] == "global" or r.get("project") in ev["projects"])]
+        else:
+            counters = [r for r in rows if r.get("kind", "meaning") == kind and norm_word(r["phrase"]) == phrase
+                        and norm_word(r.get("after")) == after and norm_word(r.get("read_as")) == meant
+                        and (ev["scope"] == "global" or r.get("project") in ev["projects"])]
         tier = ev["tier"]
         if counters and tier == "confirmed":
             tier = "provisional"                 # one counter-example demotes, like a criterion
@@ -347,11 +353,12 @@ def lexicon_edges(rows, cfg):
         else:
             status = "active"
         latest = max(support, key=lambda r: r["ts"])
+        on = sorted({r.get("on", "") for r in support if r.get("on")})
         edges.append({"kind": kind, "phrase": latest["phrase"], "after": latest.get("after", ""),
                       "meant": latest["meant"], "layer": "flow" if after else (
                           "person" if ev["scope"] == "global" else "project"),
                       "scope": ev["scope"], "projects": ev["projects"], "tier": tier, "status": status,
-                      "cases": ev["cases"], "days": ev["days"], "counters": len(counters)})
+                      "cases": ev["cases"], "days": ev["days"], "counters": len(counters), "on": on})
     return sorted(edges, key=lambda e: (e["kind"] != "meaning", norm_word(e["phrase"]),
                                         LAYER_ORDER[e["layer"]], norm_word(e["after"])))
 
@@ -363,6 +370,8 @@ def edge_visible(e, project):
 def format_edge(e):
     where = "all projects" if e["scope"] == "global" else "@" + (e["projects"][0] if e["projects"] else "?")
     tail = "[%s · %s · %s]" % (e["tier"], e["layer"], where)
+    if e.get("on"):
+        tail += "  (on: %s)" % ", ".join(e["on"][-3:])
     if e["kind"] == "same":
         return '- "%s" ≈ "%s"  %s' % (e["phrase"], e["meant"], tail)
     head = ('- cost: "%s"' % e["phrase"]) if e["kind"] == "cost" else ('- "%s"' % e["phrase"])
@@ -371,18 +380,23 @@ def format_edge(e):
     return '%s → %s  %s' % (head, e["meant"], tail)
 
 
-def neighbors(edges, phrase):
-    """Words linked to `phrase` by an active `same` relation, one hop, either direction."""
-    me, out = norm_word(phrase), set()
+def neighbors(edges, phrase, depth=3):
+    """Words reachable from `phrase` over active `same` relations, either direction, up to `depth` hops
+    ("말끔하게" ≈ "깔끔하게" ≈ "정리" reaches 정리's meaning)."""
+    links = {}
     for e in edges:
-        if e["kind"] != "same" or e["status"] != "active":
-            continue
-        a, b = norm_word(e["phrase"]), norm_word(e["meant"])
-        if a == me:
-            out.add(b)
-        elif b == me:
-            out.add(a)
-    return out
+        if e["kind"] == "same" and e["status"] == "active":
+            a, b = norm_word(e["phrase"]), norm_word(e["meant"])
+            links.setdefault(a, set()).add(b)
+            links.setdefault(b, set()).add(a)
+    seen, frontier = {norm_word(phrase)}, {norm_word(phrase)}
+    for _ in range(depth):
+        frontier = {n for f in frontier for n in links.get(f, ()) if n not in seen}
+        if not frontier:
+            break
+        seen |= frontier
+    seen.discard(norm_word(phrase))
+    return seen
 
 
 def lexicon_text(p, project=None):
@@ -440,7 +454,7 @@ def cmd_hear(a, p):
     ensure_store(p)
     if a.kind == "cost" and norm_word(a.meant) not in COST_VALUES:
         sys.exit("a cost entry means `cheap` or `costly`")
-    row = make_word(a.phrase, a.meant, a.project or project_name(), a.kind, a.source, a.read_as, a.after)
+    row = make_word(a.phrase, a.meant, a.project or project_name(), a.kind, a.source, a.read_as, a.after, a.on)
     with locked(p):
         new = not p.lexicon.exists()
         with open(str(p.lexicon), "a", encoding="utf-8") as f:
@@ -754,6 +768,7 @@ def build_parser():
     s.add_argument("phrase"); s.add_argument("meant")
     s.add_argument("--read-as", default="", help="what the AI took it to mean (a correction's wrong reading)")
     s.add_argument("--after", default="", help="the step right before it in the flow (flow layer)")
+    s.add_argument("--on", default="", help="what it was applied to: notes.md, a .py file, a PR (shown, not a key)")
     s.add_argument("--kind", choices=WORD_KINDS, default="meaning")
     s.add_argument("--source", choices=WORD_SOURCES, default="correction")
     s.add_argument("--project", default=""); s.set_defaults(fn=cmd_hear)

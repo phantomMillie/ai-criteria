@@ -45,8 +45,11 @@ gets fitted to this user's way of talking; `ai-clarify` reads it back next time.
 ```bash
 A="${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py"
 python3 "$A" lexicon --phrase "<word>"            # reuse an existing meaning's exact text if one fits
-python3 "$A" hear "<word>" "<what it actually meant>" --read-as "<what you took it to mean>" [--after "<the step right before>"]
+python3 "$A" hear "<word>" "<what it actually meant>" --read-as "<what you took it to mean>" [--after "<the step right before>"] [--on "<what it was applied to>"]
 ```
+
+- `--on` is the target (notes.md, a .py file, a PR). Meanings travel badly across target kinds, so the next session
+  sees `(on: notes.md)` and treats code as new ground.
 
 - **The phrase is the user's own word, in its shortest form.** Observations only add up when the phrase is
   written the same way every time, so strip the sentence down to the word that carried the meaning:

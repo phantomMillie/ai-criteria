@@ -205,9 +205,21 @@ class Store(unittest.TestCase):
         self.assertIn(meant, out)                                                   # one hop: 정리's meaning is usable
         self.assertIn('(via "깔끔하게" ≈ "정리")', out)
         self.assertEqual(run(self.root, "variants").strip(), "no variant groups")     # related pairs are not merge candidates
-        # a correction on that word is a counter-example and breaks the link
-        self.words(dict(phrase="깔끔하게", meant="들여쓰기 맞추기", read_as="정리", project="kit", now=d(4)))
-        self.assertNotIn("≈", ailog.lexicon_text(p, "kit"))
+        # chains: a reading recorded one hop out still reaches the meaning
+        self.words(dict(phrase="말끔하게", meant="깔끔하게", kind="same", source="read", project="kit", now=d(3)))
+        self.assertIn(meant, run(self.root, "lexicon", "--phrase", "말끔하게", "--project", "kit"))
+        # any correction on that word is a counter-example and breaks the link, exact read_as text or not
+        self.words(dict(phrase="깔끔하게", meant="들여쓰기 맞추기", read_as="정리 (중복 줄 지우기)", project="kit", now=d(4)))
+        self.assertNotIn('"깔끔하게" ≈ "정리"', ailog.lexicon_text(p, "kit"))
+
+    def test_on_is_shown_but_not_a_key(self):
+        d = lambda day: datetime.datetime(2026, 10, day, 9, 0)
+        p = self.words(dict(phrase="정리", meant="중복 줄만 지운다", on="notes.md", project="kit", now=d(1)),
+                       dict(phrase="정리", meant="중복 줄만 지운다", on="README.md", project="kit", now=d(2)))
+        text = ailog.lexicon_text(p, "kit")
+        self.assertIn("provisional", text)                                          # two targets, one word
+        self.assertIn("(on: README.md, notes.md)", text)
+        self.assertIn("(on:", run(self.root, "hear", "정리", "중복 줄만 지운다", "--on", "docs/a.md", "--project", "kit"))
 
     def test_iso_week(self):
         self.assertEqual(ailog.iso_week(datetime.date(2026, 10, 12)), "2026-W42")
