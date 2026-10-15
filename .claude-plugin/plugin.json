@@ -1,7 +1,7 @@
 {
   "name": "ai-criteria",
   "description": "Fit AI conversation to the way you talk. Learns what your words mean from your corrections (flow / project / person layers), asks only when nothing learned settles it and a wrong guess is costly, and promotes recurring root causes into criteria with applies-when / void-when. Local-first, zero dependencies.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "MIT",
   "keywords": [
     "ai-quality",
