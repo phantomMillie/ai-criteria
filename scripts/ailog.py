@@ -299,8 +299,8 @@ def has_criteria(p):
 # ---------------------------------------------------------------- your words
 # What this user's words meant, learned mostly from corrections (and from answers to clarify questions).
 # One row = one observation. Edges, layers and tiers are derived on read, never stored.
-WORD_KINDS = ("meaning", "cost")
-WORD_SOURCES = ("correction", "answer")
+WORD_KINDS = ("meaning", "cost", "same")      # same: this word was read as another learned word (a relation)
+WORD_SOURCES = ("correction", "answer", "read")  # read: the model's own reading during work, not corrected
 COST_VALUES = ("cheap", "costly")
 LAYER_ORDER = {"flow": 0, "project": 1, "person": 2}    # narrowest layer wins
 
@@ -331,7 +331,9 @@ def lexicon_edges(rows, cfg):
     edges = []
     for (kind, phrase, after, meant), support in groups.items():
         ev = evidence_tier(support, cfg)
-        counters = [r for r in rows if r.get("kind", "meaning") == kind and norm_word(r["phrase"]) == phrase
+        # A `same` edge (a ≈ b) is countered by a correction of a that was read as b: a meaning row, not a same row.
+        counter_kind = "meaning" if kind == "same" else kind
+        counters = [r for r in rows if r.get("kind", "meaning") == counter_kind and norm_word(r["phrase"]) == phrase
                     and norm_word(r.get("after")) == after and norm_word(r.get("read_as")) == meant
                     and (ev["scope"] == "global" or r.get("project") in ev["projects"])]
         tier = ev["tier"]
@@ -360,16 +362,34 @@ def edge_visible(e, project):
 
 def format_edge(e):
     where = "all projects" if e["scope"] == "global" else "@" + (e["projects"][0] if e["projects"] else "?")
+    tail = "[%s · %s · %s]" % (e["tier"], e["layer"], where)
+    if e["kind"] == "same":
+        return '- "%s" ≈ "%s"  %s' % (e["phrase"], e["meant"], tail)
     head = ('- cost: "%s"' % e["phrase"]) if e["kind"] == "cost" else ('- "%s"' % e["phrase"])
     if e["after"]:
         head += ' after "%s"' % e["after"]
-    return '%s → %s  [%s · %s · %s]' % (head, e["meant"], e["tier"], e["layer"], where)
+    return '%s → %s  %s' % (head, e["meant"], tail)
+
+
+def neighbors(edges, phrase):
+    """Words linked to `phrase` by an active `same` relation, one hop, either direction."""
+    me, out = norm_word(phrase), set()
+    for e in edges:
+        if e["kind"] != "same" or e["status"] != "active":
+            continue
+        a, b = norm_word(e["phrase"]), norm_word(e["meant"])
+        if a == me:
+            out.add(b)
+        elif b == me:
+            out.add(a)
+    return out
 
 
 def lexicon_text(p, project=None):
     """Edges worth injecting: every active edge visible in this project, pending included.
     A single correction already changes the next session (the model states the reading, the user can fix it);
-    only contested and retired edges stay out."""
+    only contested and retired edges stay out. `same` relations come from the model's own readings and let
+    a learned meaning spread to the words it was read through."""
     edges = [e for e in lexicon_edges(read_jsonl(p.lexicon), load_config(p))
              if e["status"] == "active" and edge_visible(e, project)]
     return "\n".join(format_edge(e) for e in edges)
@@ -387,7 +407,11 @@ def variant_groups(edges):
             b = edges[j]
             if j in seen or b["kind"] != a["kind"]:
                 continue
+            if a["kind"] == "same":
+                continue
             pa, pb = norm_word(a["phrase"]), norm_word(b["phrase"])
+            if pb in neighbors(edges, a["phrase"]):
+                continue                                   # already related; nothing to merge
             if pa != pb and (norm_word(a["meant"]) == norm_word(b["meant"]) or pa in pb or pb in pa):
                 group.append(b)
                 seen.add(j)
@@ -464,15 +488,25 @@ def cmd_merge_word(a, p):
 def cmd_lexicon(a, p):
     project = a.project or project_name()
     edges = lexicon_edges(read_jsonl(p.lexicon), load_config(p))
-    if a.phrase:
-        edges = [e for e in edges if norm_word(a.phrase) in norm_word(e["phrase"])]
     if not a.all:
         edges = [e for e in edges if edge_visible(e, project)]
+    via = {}
+    if a.phrase:
+        # The word itself, its relations, and one hop out: a meaning learned on a related word is usable here.
+        want = norm_word(a.phrase)
+        for n in neighbors(edges, a.phrase):
+            via[n] = a.phrase
+        def keep(e):
+            ph, mt = norm_word(e["phrase"]), norm_word(e.get("meant", ""))
+            return want in ph or (e["kind"] == "same" and want in mt) or ph in via
+        edges = [e for e in edges if keep(e)]
     if not edges:
         print("no words learned yet" + ("" if a.all else " for @%s (try --all)" % project))
         return
     for e in edges:
         note = "" if e["status"] == "active" else "  ** %s **" % e["status"]
+        if e["kind"] != "same" and norm_word(e["phrase"]) in via:
+            note += '  (via "%s" ≈ "%s")' % (via[norm_word(e["phrase"])], e["phrase"])
         print("%s  %d case(s) / %d day(s) / %d counter%s" % (format_edge(e), e["cases"], e["days"], e["counters"], note))
 
 

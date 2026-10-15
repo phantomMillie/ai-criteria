@@ -193,6 +193,22 @@ class Store(unittest.TestCase):
         with self.assertRaises(SystemExit):
             run(self.root, "merge-word", "없는말", "정리")
 
+    def test_readings_link_words_and_lookup_walks_one_hop(self):
+        d = lambda day: datetime.datetime(2026, 10, day, 9, 0)
+        meant = "중복 줄만 지운다"
+        p = self.words(dict(phrase="정리", meant=meant, project="kit", now=d(1)),
+                       dict(phrase="정리", meant=meant, project="kit", now=d(2)),
+                       dict(phrase="깔끔하게", meant="정리", kind="same", source="read", project="kit", now=d(3)))
+        text = ailog.lexicon_text(p, "kit")
+        self.assertIn('"깔끔하게" ≈ "정리"  [pending · project · @kit]', text)      # the model's reading is data
+        out = run(self.root, "lexicon", "--phrase", "깔끔하게", "--project", "kit")
+        self.assertIn(meant, out)                                                   # one hop: 정리's meaning is usable
+        self.assertIn('(via "깔끔하게" ≈ "정리")', out)
+        self.assertEqual(run(self.root, "variants").strip(), "no variant groups")     # related pairs are not merge candidates
+        # a correction on that word is a counter-example and breaks the link
+        self.words(dict(phrase="깔끔하게", meant="들여쓰기 맞추기", read_as="정리", project="kit", now=d(4)))
+        self.assertNotIn("≈", ailog.lexicon_text(p, "kit"))
+
     def test_iso_week(self):
         self.assertEqual(ailog.iso_week(datetime.date(2026, 10, 12)), "2026-W42")
 

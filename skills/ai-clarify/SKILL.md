@@ -27,6 +27,19 @@ Run them in order. Most instructions pass through in seconds with nothing to sho
 
    Narrowest layer wins: **flow** (the step right before) > **project** > **person**.
    Evidence in the conversation or code also closes a split.
+
+   **Read by analogy, and record the reading.** A word you have not learned often sits next to one you have:
+   "깔끔하게 정리해봐" when "정리" is learned, "clean this up" when "clean" is. Use the learned word's meaning,
+   state the reading in one line, and record that you read it that way:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" hear "깔끔하게" "정리" --kind same --source read
+   ```
+
+   That is a relation (`"깔끔하게" ≈ "정리"`), not a meaning: it says nothing new about the user, only how you
+   read them. Uncorrected readings pile up by distinct days like everything else, and next time the lookup for
+   "깔끔하게" walks to "정리" on its own. A correction on that word becomes a counter-example and breaks the link.
+   Nothing to record when you apply a learned word to its own form.
 6. **Check input criteria.** An unmet `I-` criterion is a split too (`ailog.py criteria`).
 7. **Price the split.** Would a wrong guess be costly?
    - costly: **goes out** (push, PR, deploy, send, publish) · **deletes or overwrites** (rm, reset, DB) ·

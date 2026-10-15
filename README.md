@@ -73,6 +73,8 @@ You can't write all of that down ahead of time. A well-made harness or prompt te
 
 Words you use often become nodes, and what they actually meant becomes links. Links live in three layers (flow, project, person), and the narrowest one wins. You don't pick the layer; it's derived from how the records pile up.
 
+Words link to words, too. When the AI reads "clean this up" through the learned word "clean" and you don't correct it, a `"clean this up" ≈ "clean"` relation is recorded: the AI's own reading becomes data. Repeated on other days it hardens, and next time the lookup walks from the new word to the learned one by itself. A correction breaks the link. So your words graph spreads the way you actually work.
+
 <p align="center"><img src="docs/assets/words-graph.svg" alt="A graph where 'push it' links to different meanings in the flow, project, and person layers" width="100%"></p>
 
 **When it asks.** Not every time. It looks at what the graph knows and what a wrong guess would cost.

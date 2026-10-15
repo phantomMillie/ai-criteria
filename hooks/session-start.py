@@ -58,7 +58,10 @@ try:
             "What these words meant before. The narrowest layer wins (flow > project > person). "
             "confirmed → act on it; provisional or pending → act on it and state the reading in one line "
             "so the user can fix it (pending = corrected once so far). "
-            "A `cost` entry replaces the default cheap/costly call for that action.\n\n" + words)
+            "A `cost` entry replaces the default cheap/costly call for that action. "
+            "`\"a\" ≈ \"b\"` means a was read as the learned word b: use b's meaning for a and state it; "
+            "when you read a new word through a learned one yourself, record it "
+            "(`ailog.py hear \"<word>\" \"<learned word>\" --kind same --source read`).\n\n" + words)
     if ailog.has_criteria(p):
         body = ailog.criteria_text(p, project)
         if body:
