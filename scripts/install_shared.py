@@ -58,6 +58,10 @@ Native SessionStart hooks inject criteria automatically; prompt hooks signal pos
 Do not run the startup script again if the criteria were already injected by the hook.
 If hooks are unavailable or awaiting trust, run `python3 \"{target}/hooks/session-start.py\"` once.
 Treat its output as the user's accumulated criteria. Re-run when the working project changes.
+Before editing files, side-effect commands, publishing, or a large task, follow `ai-clarify`: split the
+instruction, look its words up in what this user meant before (`ailog.py lexicon`), ask only when nothing
+learned settles it and a wrong guess is costly, otherwise act and state the reading in one line.
+When a correction is about what a word meant or about asking, also record it with `ailog.py hear` (see ai-log).
 Before a consequential conclusion, use `ai-check`; check input requirements and judgment void conditions.
 When the user corrects an actually wrong conclusion, use `ai-log` in the same turn, once per correction.
 Record gave / actual with evidence / broken premise (unknown if uncertain). Questions and ordinary changes

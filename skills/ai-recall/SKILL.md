@@ -9,6 +9,7 @@ description: Look back at logged AI mistakes with search and stats, check the st
 A="${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py"
 python3 "$A" search "<query>" [--tag wrong-premise] [--project name]   # has this happened before?
 python3 "$A" stats [--weeks 8]                                          # per week / project / tag
+python3 "$A" lexicon [--phrase "<word>"] [--all]                        # what this user's words meant, by layer
 python3 "$A" doctor                                                     # permissions, broken lines, inbox size
 python3 "$A" export --out ~/ai-criteria-backup.json                     # backup / move machines
 python3 "$A" import ~/ai-criteria-backup.json                           # merge on the other machine

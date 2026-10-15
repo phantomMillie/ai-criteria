@@ -2,201 +2,265 @@
 
 # ai-criteria
 
-**Your AI keeps making the same mistake. Stop correcting it — start compounding the corrections.**
+### An AI that understands you better the more you use it
 
-A local-first plugin for [Claude Code](https://claude.com/claude-code) that logs every time you correct your AI,
-finds the *root causes* that repeat, and turns only those into rules it must pass before answering.
+The best harness and the best-written prompt still don't know how *you* talk.<br>
+ai-criteria records the moments you correct your AI, so every conversation fits you a little better.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)
 ![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)
-![Data: stays on your machine](https://img.shields.io/badge/data-stays%20on%20your%20machine-informational)
+![Claude Code · Codex · Gemini CLI](https://img.shields.io/badge/works%20with-Claude%20Code%20·%20Codex%20·%20Gemini%20CLI-8A63D2)
 
-English · [한국어](README.ko.md)
+[Quick start](#quick-start) · [How it fits to you](#how-it-fits-to-you) · [Compared](#how-is-this-different) · [Details](#details) · [한국어](README.ko.md)
 
 </div>
 
----
+<p align="center"><img src="docs/assets/demo.svg" alt="On day one the AI reads 'push it' as a PR and gets corrected; after the same correction on 3 different days it pushes straight to main without asking or guessing wrong" width="100%"></p>
 
-## The problem
-
-You correct your AI. It apologizes. Next week it makes the same mistake in a different file.
-
-"Memory" notes don't fix this, because they store **conclusions and vows** ("be more careful with specs").
-Vows can't be checked, they pile up forever, and nobody ever deletes one that turned out wrong.
-
-## The idea
-
-```
-you correct the AI ──▶ /ai-log        3 fields: gave / actual / WHY   (the hook nudges it for you)
-                            │ weekly
-                            ▼
-                      /ai-rollup      inbox → weekly case file
-                            ▼
-                      /ai-criteria    same WHY on 2+ cases → promote   ·   counter-example → retire
-                            ▼
-        next session starts with your current criteria already in context
-                            ▼
-                      /ai-check       gate right before a hard-to-undo conclusion
-```
-
-Four rules make it different from a notes file:
-
-1. **Log the broken premise, not the outcome.** `why` = *"treated a spec sentence as a confirmed requirement"*, not *"misread the doc"*.
-2. **Promote on independent repetition.** The same `why` on **2+ cases on 2+ different days** → provisional, **3+ on 3+ days** → confirmed. Three corrections in one afternoon are one observation. Tag counts don't count — same tag, different `why` is a different bug.
-3. **A rule must be falsifiable.** Every criterion has an **applies-when** and a **void-when**, so real cases can prove it right or wrong.
-4. **Rules die.** A counter-example retires a criterion. If your list only ever grows, something is wrong — and the tool tells you so.
-
-## Evidence tiers
-
-| Tier | Same `why` | What happens |
-|---|---|---|
-| pending | 1 case, or many on 1 day | parked under `## Pending` with its count |
-| provisional | 2+ cases, 2+ days | injected, marked `[provisional]`, strict void-when |
-| confirmed | 3+ cases, 3+ days | injected as a normal criterion |
-| global | same `why` in 2+ projects | otherwise the criterion is `@project`-scoped |
-| retired | 2 counter-examples (1 demotes) | moved under `## Retired`, never revived |
-
-A wrong rule is cheap — it is one slightly noisy sentence and its void-when filters it. A late rule is expensive — the mistake keeps happening.
-So the bar for *provisional* is low and the bar for *confirmed* is strict. The only evidence that matters afterwards is **recurrence**:
-`ailog.py search "<phrase>" --since <promotion date>`.
-
-Rollup is not worth running under ~5 cases; clusters usually only show up around 10+ cumulative cases.
-`ailog.py evidence <id> <id> …` computes the real tier of a cluster (distinct days, projects).
-Tune every threshold in `~/.ai-criteria/config.json`:
-
-```json
-{ "provisional_min_cases": 2, "provisional_min_days": 2, "confirmed_min_cases": 3,
-  "confirmed_min_days": 3, "global_min_projects": 2, "retire_counterexamples": 2, "rollup_nudge_at": 5 }
-```
-
-## Share with Codex and Gemini CLI
-
-After installing the Claude Code plugin, run from this repository:
-
-```bash
-python3 scripts/install_shared.py
-```
-
-All three agents share `~/.ai-criteria` (use the same `AI_CRITERIA_HOME` override everywhere).
-The installer adds five portable skills under `~/.agents/skills` and installs the runtime under
-`~/.local/share/ai-criteria`. Existing global instructions and settings are preserved and backed up.
-Re-running the installer does not duplicate its hooks or instruction blocks.
-
-Native `SessionStart` hooks inject the current project criteria automatically. Claude and Codex
-use `UserPromptSubmit` to detect correction signals; Gemini uses `BeforeAgent`. All reuse the same
-Claude hook logic through a JSON adapter. Signals remind the model to evaluate and log a correction;
-they never create cases themselves. Hook errors do not block sessions or user prompts.
-
-Codex hooks are merged into `~/.codex/hooks.json`; review and trust them using `/hooks` before use.
-The installer does not grant trust automatically. Gemini hooks are merged into `~/.gemini/settings.json`.
-Restart the agents after installation. Global instructions provide a manual fallback if hooks cannot run,
-without re-reading criteria already injected by hooks. Host approvals and skill activation consent still apply.
-
-## What a criterion looks like
-
-> *Illustrative example.*
-
-```markdown
-### J-1 [confirmed]  In the old source but not the new one → "not migrated"
-
-- Applies when: the input contains NO removal-decision source (comment, spec, separate ticket)
-- Void when:    any removal-decision source exists. Use 3 buckets instead
-                (not migrated / removed on purpose / unknown)
-- Cases:        support 0 / counter-examples 2 (2026-W37) → retired, replaced by J-1b
-```
-
-```markdown
-### I-2  Screen comparison request
-
-- Required:     design link + a current/retired label on each frame
-- Satisfied?:   does every link carry a label (yes/no)
-- Refutation:   satisfied but the same mistake still happens → the criterion is insufficient
-```
-
-Input criteria (`I-`) catch what **you** must supply. Judgment criteria (`J-`) catch what **the AI** must verify.
-Criteria titled `@my-app` are injected only in that project's sessions.
-
-## Install
+## Quick start
 
 ```
 /plugin marketplace add phantomMillie/ai-criteria
 /plugin install ai-criteria@ai-criteria
 ```
 
-Start a new session. That's it — no config, no API keys, no packages (Python 3.8+ standard library only).
-Verify with `python3 scripts/ailog.py doctor`.
+Start a new session and work as usual. When the AI gets something wrong, just say "that's wrong" or "why did you do that." The rest builds up on its own.<br>
+No config, no API keys, no packages. Using Codex or Gemini CLI too? See "Use it with Codex and Gemini CLI" under [Details](#details).
 
-## Use
+## What changes
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**It learns your words**<br>
+What "push it" or "clean it up" means to you, learned from your corrections. Per project, and per what you did right before.
+
+</td>
+<td width="50%" valign="top">
+
+**It asks only when it matters**<br>
+Only when a word is unknown and the action is hard to undo. Otherwise it states how it read you in one line and gets going.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**Repeat mistakes become criteria**<br>
+Only root causes that repeat on different days get promoted. Three corrections in one afternoon count once. Counter-examples delete them.
+
+</td>
+<td valign="top">
+
+**It stays on your machine**<br>
+No network calls, no accounts, no dependencies. One hidden folder in your home directory, sent nowhere.
+
+</td>
+</tr>
+</table>
+
+## Why this exists
+
+"Push it" means just commit to one person, straight to main to another, a PR to someone else. The same person uses it differently in a personal repo and at work, and right after "show me" it might mean *don't push yet*.
+
+You can't write all of that down ahead of time. A well-made harness or prompt template is tuned for the average person, and memory notes fill up with vows like "I'll be more careful." Ambiguity doesn't go away, so the only way through is to fit to it. That's why this doesn't try to get everything right up front. It acts, and learns the moment you correct it.
+
+## How it fits to you
+
+<p align="center"><img src="docs/assets/how-it-works.svg" alt="Instruction → ai-clarify looks the words up in your words graph → act → correction → record; next session, repeated meanings and criteria are already in context" width="100%"></p>
+
+Words you use often become nodes, and what they actually meant becomes links. Links live in three layers (flow, project, person), and the narrowest one wins. You don't pick the layer; it's derived from how the records pile up.
+
+<p align="center"><img src="docs/assets/words-graph.svg" alt="A graph where 'push it' links to different meanings in the flow, project, and person layers" width="100%"></p>
+
+**When it asks.** Not every time. It looks at what the graph knows and what a wrong guess would cost.
+
+| What the graph says about this word | Wrong guess is easy to fix | Wrong guess is hard to undo |
+|---|---|---|
+| a confirmed meaning | just does it | does it, states the reading in one line |
+| a provisional meaning | does it, one line | does it, one line |
+| unknown · layers conflict · recently corrected | does it, one line | **asks** |
+
+Only one cell asks. As you talk more, words move up the table, so questions keep dropping. Hard to undo means it goes out (push, PR, deploy, send), deletes (remove, overwrite, `git reset`), is large (many files, a full rewrite), or touches money or permissions. Corrections like "you should have asked" or "don't ask about that" turn these defaults into yours.
+
+## How is this different
+
+| | Harness · prompt templates | `CLAUDE.md` · memory | **ai-criteria** |
+|---|---|---|---|
+| Fitted to | the average user | whatever you wrote by hand | **your own corrections** |
+| Your habits | unknown | only what you wrote down | **learned on every correction** |
+| Meaning by project or flow | none | split the files yourself | **layers, automatically** |
+| Wrong rules | stay | stay | **deleted by counter-examples** |
+| Questions | always or never | undefined | **only when unknown and costly** |
+
+You don't have to choose. Put it on top of your harness and use both.
+
+## Details
+
+<details>
+<summary><b>Tiers: pending → provisional → confirmed → retired</b></summary>
+
+<br>
+
+Words and criteria grow by the same rules. Repeats inside one conversation aren't independent evidence, so only **different days** count.
+
+| The same meaning / root cause | What happens |
+|---|---|
+| once, or many times in one day | pending, not used yet |
+| on 2 different days | provisional: used, with the reading stated in one line |
+| on 3 different days | confirmed: used without asking |
+| in 2+ projects | moves up to the person layer / a global criterion |
+| 1 counter-example | a confirmed one drops to provisional; if the correction is newer, it counts as unknown again |
+| 2 counter-examples | retired |
+
+A wrong rule is cheap: one slightly noisy sentence. A late rule is expensive: the mistake keeps happening. So provisional is low and confirmed is strict. Tune thresholds in `~/.ai-criteria/config.json`:
+
+```json
+{ "provisional_min_cases": 2, "provisional_min_days": 2, "confirmed_min_cases": 3,
+  "confirmed_min_days": 3, "global_min_projects": 2, "retire_counterexamples": 2,
+  "rollup_nudge_at": 5, "clarify_reminder": true }
+```
+
+</details>
+
+<details>
+<summary><b>Root causes become criteria: /ai-log → /ai-rollup → /ai-criteria</b></summary>
+
+<br>
+
+Sometimes it isn't a word's meaning but the judgment that went wrong. Then it records **where the premise broke**, not the outcome.
+
+- ✗ `why: misread the doc` (just restates the outcome)
+- ○ `why: treated a spec sentence as a confirmed requirement; ignored the "to be confirmed" note in the same item`
+
+Run `/ai-rollup` once a week. Cases move into weekly files and `/ai-criteria` clusters the same whys, then promotes or retires them. Every criterion says when it applies and when it's void, so it can be proven wrong.
+
+```markdown
+### J-1 [confirmed]  In the old source but not the new one → "not migrated"
+- Applies when: the input has NO removal-decision source (comment, spec, separate ticket)
+- Void when:    any removal-decision source exists. Use 3 buckets: not migrated / removed on purpose / unknown
+```
+
+Input criteria (`I-`) catch what you need to supply; judgment criteria (`J-`) catch what the AI needs to verify. After promotion, only recurrence matters: `ailog.py search "<phrase>" --since <promotion date>`
+
+</details>
+
+<details>
+<summary><b>Right before concluding: /ai-check</b></summary>
+
+<br>
+
+`ai-clarify` runs before the work. `ai-check` runs right before the conclusion: before comparing sources, counting, declaring something "missing," or freezing requirements. If an input criterion isn't met, it asks first, then checks each judgment criterion's void-when.
+
+</details>
+
+<details>
+<summary><b>Usage at a glance</b></summary>
+
+<br>
 
 | You do | What happens |
 |---|---|
-| Tell the AI *"that's wrong, you missed the second file"* | A hook notices the correction; the AI logs one case, same turn |
-| `/ai-rollup` (weekly) | Inbox → `cases/2026-W42.jsonl` (+ readable `.md`), then continues into `/ai-criteria` |
-| `/ai-criteria` | Clusters every `why`, measures each cluster's tier, promotes / retires, parks the rest under *Pending* |
-| *(automatic)* new session | Current criteria for **this project** are injected. 5+ unrolled cases → it suggests a rollup |
-| `/ai-check` | Before comparing, counting, or "freezing" something: input gaps first, then each judgment rule's void-when |
-| `/ai-recall` | Search past cases, stats, store health check, export/import |
+| "fix the README and push it" | It looks "push it" up: does it, states the reading, or asks if unknown and costly |
+| "wrong, by push it I meant just commit" | It logs the case and links `[push it] → just commit` |
+| "you should have asked" / "don't ask about that" | That action is recorded as costly or cheap, for you |
+| `/ai-rollup` (weekly) | Cases go into weekly files, then straight into `/ai-criteria` |
+| *(automatic)* new session | The `ai-clarify` note + words learned in this project + criteria |
+| `/ai-check` | A check right before comparing, counting, or freezing |
+| `/ai-recall` | Search past cases, see learned words, stats, health check, export/import |
 
-## Your data
+</details>
 
-Everything is in a **hidden folder in your home directory**, mode `700`:
+<details>
+<summary><b>Use it with Codex and Gemini CLI</b></summary>
 
-```
-~/.ai-criteria/
-├── inbox.jsonl           cases waiting for rollup
-├── cases/
-│   ├── 2026-W42.jsonl    weekly cases (source of truth)
-│   └── 2026-W42.md       same, human-readable
-├── criteria.md           your current criteria (+ Pending, Retired)
-├── config.json           promotion thresholds
-├── tags.json             root-cause tags (add your own)
-└── meta.json
-```
+<br>
 
-- **Nothing is sent anywhere.** No network calls, no telemetry, no accounts. Read the code: one ~500-line file, stdlib only.
-- Each OS user has their own store. Override the location with `AI_CRITERIA_HOME`.
-- Writes use a file lock and atomic replace; the inbox is emptied only *after* the weekly file is written.
-- Obvious secret shapes (`sk-…`, `ghp_…`, `AKIA…`, JWTs, `password=…`) are masked before saving. This is a safety net, not a guarantee — don't paste secrets into cases.
-- Move machines: `ailog.py export --out x.json` → `ailog.py import x.json` (duplicate ids skipped).
-- Sharing with a team: share `criteria.md` (it contains rules, not your cases).
-
-## CLI
+After installing the Claude Code plugin, run this from the repository:
 
 ```bash
+python3 scripts/install_shared.py
+```
+
+- All three share `~/.ai-criteria`, so a correction in any of them fits all of them.
+- Six portable skills go into `~/.agents/skills`, the runtime into `~/.local/share/ai-criteria`.
+- A managed block is added to `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`. Existing instructions stay and the old files are backed up.
+- Hooks are merged into `~/.codex/hooks.json` and `~/.gemini/settings.json`. Re-running doesn't duplicate anything.
+- In Codex, trust the new hooks with `/hooks`. The installer never grants trust for you.
+- If you already have your own skill with the same name, it stops instead of overwriting. It never touches your cases, words, or criteria.
+
+</details>
+
+<details>
+<summary><b>Where your data lives</b></summary>
+
+<br>
+
+```
+~/.ai-criteria/            (mode 700)
+├── lexicon.jsonl          your words graph (what a word actually meant, one observation per line)
+├── inbox.jsonl            cases waiting for rollup
+├── cases/2026-W42.jsonl   weekly cases (+ readable .md)
+├── criteria.md            your current criteria (+ Pending, Retired)
+├── config.json            thresholds, clarify note on/off
+└── tags.json · meta.json
+```
+
+- No network calls, no telemetry, no accounts. It's one stdlib-only file.
+- Things shaped like keys, tokens, and passwords are masked before saving. That's a safety net, not a guarantee, so don't write secrets.
+- Moving machines: `ailog.py export --out x.json` → `ailog.py import x.json`. Your words come along.
+- Sharing with a team: share `criteria.md` only. A words graph is personal.
+
+</details>
+
+<details>
+<summary><b>CLI</b></summary>
+
+<br>
+
+```bash
+python3 scripts/ailog.py hear "push it" "just commit" --read-as "push to main" [--after "show me"] [--project name]
+python3 scripts/ailog.py hear "push to personal fork main" cheap --kind cost
+python3 scripts/ailog.py lexicon [--phrase "push it"] [--all]
 python3 scripts/ailog.py log "gave" "actual" "why" --tag wrong-premise [--project name]
-python3 scripts/ailog.py status
 python3 scripts/ailog.py rollup [--dry-run|--keep]
 python3 scripts/ailog.py candidates
 python3 scripts/ailog.py evidence <case-id> <case-id> ...
 python3 scripts/ailog.py criteria [--project name]
 python3 scripts/ailog.py search "query" [--tag T] [--project P] [--since DATE]
-python3 scripts/ailog.py stats [--weeks 8]
-python3 scripts/ailog.py export [--out file.json]
-python3 scripts/ailog.py import file.json
-python3 scripts/ailog.py doctor
+python3 scripts/ailog.py status | stats | doctor
+python3 scripts/ailog.py export [--out file.json] | import file.json
 ```
 
-Default root-cause tags: `missed-evidence` · `misread-record` · `oversimplified-rule` · `stale-source` · `scope-drift` · `fabricated-number` · `wrong-premise`.
+Default root-cause tags: `missed-evidence` · `misread-record` · `oversimplified-rule` · `stale-source` · `scope-drift` · `fabricated-number` · `wrong-premise` · `split-reading`
 
-## FAQ
+</details>
 
-**How is this different from `CLAUDE.md` / memory?**
-Those hold instructions you wrote by hand. This builds instructions from *evidence*: a rule only exists after the same root cause repeats, it says when it does **not** apply, and it is deleted when disproved.
+<details>
+<summary><b>FAQ</b></summary>
 
-**Will it bloat my context?**
-No criteria yet → it injects nothing. Retired and pending items are never injected, and project-scoped rules appear only in their project.
+<br>
 
-**Does it work with other agents?**
-The data format (JSONL + Markdown) and the CLI are agent-agnostic. The hooks and skills target Claude Code.
+**Won't it ask a ton of questions at first?**<br>
+No. Even with an unknown word, if the action is easy to fix it states its reading in one line and goes ahead. It only asks when the word is unknown *and* the action is hard to undo.
 
-**False positives from the correction detector?**
-It only raises a signal; the model decides. A plain question or re-check is ignored, so no entry is written.
+**Will it bloat my context?**<br>
+A short `ai-clarify` paragraph at session start, plus only the provisional/confirmed words and criteria for this project. Pending, contested, and retired items are never injected.
 
-## Develop
+**What about false positives from the correction detector?**<br>
+The hook only raises a signal; the model decides. Plain questions and ordinary requests are ignored, so nothing gets logged.
 
-```bash
-python3 -m unittest discover -s tests -v
-```
+**How do I turn off the `ai-clarify` note?**<br>
+Set `"clarify_reminder": false` in `~/.ai-criteria/config.json`.
 
-Issues and PRs welcome — see [CHANGELOG](CHANGELOG.md). MIT licensed.
+</details>
+
+## Contributing
+
+Issues and PRs are always welcome. Run the tests with `python3 -m unittest discover -s tests -v`. See the [CHANGELOG](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE)

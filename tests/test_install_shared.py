@@ -32,7 +32,8 @@ class SharedInstallTests(unittest.TestCase):
             self.assertEqual(before.count(installer.START.encode()), 1)
             self.assertEqual((store / "inbox.jsonl").read_text(), "existing-data\n")
             skills = list((home / ".agents/skills").glob("*/SKILL.md"))
-            self.assertEqual(len(skills), 5)
+            self.assertEqual(len(skills), 6)
+            self.assertIn(b"ai-clarify", before)
             for skill in skills:
                 self.assertNotIn("CLAUDE_PLUGIN_ROOT", skill.read_text())
             settings_data = json.loads(settings.read_text())

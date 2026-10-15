@@ -44,6 +44,7 @@ DEFAULT_TAGS = [
     ("scope-drift", "did something not asked, or narrowed what was asked"),
     ("fabricated-number", "counted or listed things without evidence"),
     ("wrong-premise", "not the conclusion: the starting premise was wrong"),
+    ("split-reading", "the instruction read two or more ways; picked one without asking"),
 ]
 
 CRITERIA_TEMPLATE = """\
@@ -78,6 +79,7 @@ DEFAULT_CONFIG = {
     "global_min_projects": 2,        # a `why` must appear in this many projects to be global
     "retire_counterexamples": 2,     # counter-examples that retire a criterion (1 demotes it to provisional)
     "rollup_nudge_at": 5,            # SessionStart suggests a rollup at this inbox size
+    "clarify_reminder": True,        # SessionStart reminds the model to run ai-clarify before acting
 }
 
 # Keep secrets out of stored cases. Common shapes only — not exhaustive.
@@ -106,6 +108,7 @@ class Paths:
         self.tags = self.root / "tags.json"
         self.meta = self.root / "meta.json"
         self.config = self.root / "config.json"
+        self.lexicon = self.root / "lexicon.jsonl"
         self.lock = self.root / ".lock"
 
 
@@ -293,6 +296,83 @@ def has_criteria(p):
     return p.criteria.exists() and bool(re.search(r"^### [IJ]-", p.criteria.read_text(encoding="utf-8"), re.M))
 
 
+# ---------------------------------------------------------------- your words
+# What this user's words meant, learned mostly from corrections (and from answers to clarify questions).
+# One row = one observation. Edges, layers and tiers are derived on read, never stored.
+WORD_KINDS = ("meaning", "cost")
+WORD_SOURCES = ("correction", "answer")
+COST_VALUES = ("cheap", "costly")
+LAYER_ORDER = {"flow": 0, "project": 1, "person": 2}    # narrowest layer wins
+
+
+def norm_word(s):
+    return " ".join((s or "").split()).lower()
+
+
+def make_word(phrase, meant, project, kind="meaning", source="correction", read_as="", after="", now=None):
+    now = now or datetime.datetime.now()
+    return {
+        "id": now.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4],
+        "ts": now.strftime("%Y-%m-%d %H:%M"),
+        "project": project, "kind": kind, "source": source,
+        "phrase": redact(phrase.strip()), "meant": redact(meant.strip()),
+        "read_as": redact(read_as.strip()), "after": redact(after.strip()),
+    }
+
+
+def lexicon_edges(rows, cfg):
+    """Group observations into edges (kind, phrase, after, meant). The layer is derived, not chosen:
+    `after` set -> flow; same meaning in enough projects -> person; otherwise project.
+    A row whose `read_as` equals an edge's meaning (same phrase and after) is a counter-example to that edge."""
+    groups = {}
+    for r in rows:
+        key = (r.get("kind", "meaning"), norm_word(r["phrase"]), norm_word(r.get("after")), norm_word(r["meant"]))
+        groups.setdefault(key, []).append(r)
+    edges = []
+    for (kind, phrase, after, meant), support in groups.items():
+        ev = evidence_tier(support, cfg)
+        counters = [r for r in rows if r.get("kind", "meaning") == kind and norm_word(r["phrase"]) == phrase
+                    and norm_word(r.get("after")) == after and norm_word(r.get("read_as")) == meant
+                    and (ev["scope"] == "global" or r.get("project") in ev["projects"])]
+        tier = ev["tier"]
+        if counters and tier == "confirmed":
+            tier = "provisional"                 # one counter-example demotes, like a criterion
+        last_counter = max((r["ts"] for r in counters), default="")
+        if len(counters) >= cfg["retire_counterexamples"]:
+            status = "retired"
+        elif counters and last_counter >= max(r["ts"] for r in support):
+            status = "contested"                 # corrected away more recently than it was confirmed
+        else:
+            status = "active"
+        latest = max(support, key=lambda r: r["ts"])
+        edges.append({"kind": kind, "phrase": latest["phrase"], "after": latest.get("after", ""),
+                      "meant": latest["meant"], "layer": "flow" if after else (
+                          "person" if ev["scope"] == "global" else "project"),
+                      "scope": ev["scope"], "projects": ev["projects"], "tier": tier, "status": status,
+                      "cases": ev["cases"], "days": ev["days"], "counters": len(counters)})
+    return sorted(edges, key=lambda e: (e["kind"] != "meaning", norm_word(e["phrase"]),
+                                        LAYER_ORDER[e["layer"]], norm_word(e["after"])))
+
+
+def edge_visible(e, project):
+    return e["scope"] == "global" or project in e["projects"]
+
+
+def format_edge(e):
+    where = "all projects" if e["scope"] == "global" else "@" + (e["projects"][0] if e["projects"] else "?")
+    head = ('- cost: "%s"' % e["phrase"]) if e["kind"] == "cost" else ('- "%s"' % e["phrase"])
+    if e["after"]:
+        head += ' after "%s"' % e["after"]
+    return '%s → %s  [%s · %s · %s]' % (head, e["meant"], e["tier"], e["layer"], where)
+
+
+def lexicon_text(p, project=None):
+    """Edges worth injecting: provisional or confirmed, not contested or retired, visible in this project."""
+    edges = [e for e in lexicon_edges(read_jsonl(p.lexicon), load_config(p))
+             if e["tier"] != "pending" and e["status"] == "active" and edge_visible(e, project)]
+    return "\n".join(format_edge(e) for e in edges)
+
+
 # ---------------------------------------------------------------- commands
 def cmd_init(a, p):
     created = ensure_store(p)
@@ -306,6 +386,39 @@ def cmd_log(a, p):
         with open(str(p.inbox), "a", encoding="utf-8") as f:
             f.write(json.dumps(case, ensure_ascii=False) + "\n")
     print("logged %s %s @%s" % (case["ts"], " ".join("#" + t for t in case["tags"]), case["project"]))
+
+
+def cmd_hear(a, p):
+    ensure_store(p)
+    if a.kind == "cost" and norm_word(a.meant) not in COST_VALUES:
+        sys.exit("a cost entry means `cheap` or `costly`")
+    row = make_word(a.phrase, a.meant, a.project or project_name(), a.kind, a.source, a.read_as, a.after)
+    with locked(p):
+        new = not p.lexicon.exists()
+        with open(str(p.lexicon), "a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        if new:
+            with contextlib.suppress(OSError):
+                os.chmod(str(p.lexicon), 0o600)
+    key = (row["kind"], norm_word(row["phrase"]), norm_word(row["after"]), norm_word(row["meant"]))
+    for e in lexicon_edges(read_jsonl(p.lexicon), load_config(p)):
+        if (e["kind"], norm_word(e["phrase"]), norm_word(e["after"]), norm_word(e["meant"])) == key:
+            print("heard %s  (%d case(s) / %d day(s))" % (format_edge(e), e["cases"], e["days"]))
+
+
+def cmd_lexicon(a, p):
+    project = a.project or project_name()
+    edges = lexicon_edges(read_jsonl(p.lexicon), load_config(p))
+    if a.phrase:
+        edges = [e for e in edges if norm_word(a.phrase) in norm_word(e["phrase"])]
+    if not a.all:
+        edges = [e for e in edges if edge_visible(e, project)]
+    if not edges:
+        print("no words learned yet" + ("" if a.all else " for @%s (try --all)" % project))
+        return
+    for e in edges:
+        note = "" if e["status"] == "active" else "  ** %s **" % e["status"]
+        print("%s  %d case(s) / %d day(s) / %d counter%s" % (format_edge(e), e["cases"], e["days"], e["counters"], note))
 
 
 def cmd_status(a, p):
@@ -326,6 +439,11 @@ def cmd_status(a, p):
             t.count("→ retired")))
     if p.tags.exists():
         print("tags: " + ", ".join(json.loads(p.tags.read_text(encoding="utf-8")).keys()))
+    words = read_jsonl(p.lexicon)
+    if words:
+        edges = lexicon_edges(words, load_config(p))
+        print("words: %d observations, %d edges (%d injected-ready)" % (
+            len(words), len(edges), sum(1 for e in edges if e["tier"] != "pending" and e["status"] == "active")))
 
 
 def cmd_rollup(a, p):
@@ -452,7 +570,7 @@ def cmd_stats(a, p):
 
 def cmd_export(a, p):
     data = {"schema": SCHEMA, "version": VERSION, "inbox": read_jsonl(p.inbox),
-            "cases": all_cases(p),
+            "cases": all_cases(p), "lexicon": read_jsonl(p.lexicon),
             "criteria": p.criteria.read_text(encoding="utf-8") if p.criteria.exists() else ""}
     text = json.dumps(data, ensure_ascii=False, indent=2)
     if a.out:
@@ -486,6 +604,11 @@ def cmd_import(a, p):
             atomic_write(p.cases / ("%s.md" % w), render_week_md(w, merged))
         if inbox_add:
             write_jsonl(p.inbox, read_jsonl(p.inbox) + inbox_add)
+        words = read_jsonl(p.lexicon)
+        seen_words = {w["id"] for w in words}
+        words_add = [w for w in data.get("lexicon", []) if w["id"] not in seen_words]
+        if words_add:
+            write_jsonl(p.lexicon, words + words_add)
         crit = data.get("criteria", "")
         note = ""
         if re.search(r"^### [IJ]-", crit, re.M):
@@ -495,7 +618,8 @@ def cmd_import(a, p):
             else:
                 atomic_write(p.criteria, crit)
                 note = " Criteria imported."
-    print("imported %d case(s) + %d inbox item(s).%s" % (sum(len(v) for v in byweek.values()), len(inbox_add), note))
+    print("imported %d case(s) + %d inbox item(s) + %d word(s).%s" % (
+        sum(len(v) for v in byweek.values()), len(inbox_add), len(words_add), note))
 
 
 def cmd_doctor(a, p):
@@ -513,7 +637,7 @@ def cmd_doctor(a, p):
         for name, f in (("inbox.jsonl", p.inbox), ("criteria.md", p.criteria), ("tags.json", p.tags)):
             chk(name, f.exists(), "`ailog.py init`")
         bad = 0
-        for f in [p.inbox] + list(p.cases.glob("*.jsonl")):
+        for f in [p.inbox, p.lexicon] + list(p.cases.glob("*.jsonl")):
             if not f.exists():
                 continue
             for line in open(str(f), encoding="utf-8"):
@@ -537,6 +661,16 @@ def build_parser():
     s.add_argument("gave"); s.add_argument("actual"); s.add_argument("why")
     s.add_argument("--tag", action="append", default=[]); s.add_argument("--project", default="")
     s.set_defaults(fn=cmd_log)
+    s = sub.add_parser("hear", help="record what a word of this user's actually meant")
+    s.add_argument("phrase"); s.add_argument("meant")
+    s.add_argument("--read-as", default="", help="what the AI took it to mean (a correction's wrong reading)")
+    s.add_argument("--after", default="", help="the step right before it in the flow (flow layer)")
+    s.add_argument("--kind", choices=WORD_KINDS, default="meaning")
+    s.add_argument("--source", choices=WORD_SOURCES, default="correction")
+    s.add_argument("--project", default=""); s.set_defaults(fn=cmd_hear)
+    s = sub.add_parser("lexicon", help="what this user's words mean, by layer")
+    s.add_argument("--phrase", default=""); s.add_argument("--project", default="")
+    s.add_argument("--all", action="store_true", help="every project"); s.set_defaults(fn=cmd_lexicon)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     s = sub.add_parser("rollup")
     s.add_argument("--dry-run", action="store_true"); s.add_argument("--keep", action="store_true")

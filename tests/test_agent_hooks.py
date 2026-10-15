@@ -43,6 +43,41 @@ class NativeHooks(unittest.TestCase):
             self.assertNotIn("HIDE", context)
             self.assertNotIn("OLD", context)
 
+    def test_startup_clarify_reminder_without_criteria_and_opt_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = pathlib.Path(tmp)
+            data = json.dumps({"hook_event_name": "SessionStart", "cwd": tmp})
+            context = self.run_hook(data, store)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn("ai-clarify", context)
+            self.assertNotIn("Criteria this user", context)
+            (store / "config.json").write_text(json.dumps({"clarify_reminder": False}))
+            self.assertEqual(self.run_hook(data, store), {})
+
+    def test_startup_injects_learned_words_for_this_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = pathlib.Path(tmp) / "store"
+            store.mkdir()
+            project = pathlib.Path(tmp) / "kit"
+            project.mkdir()
+            rows = [{"id": str(i), "ts": "2026-10-0%d 09:00" % i, "project": "kit", "kind": "meaning",
+                     "source": "correction", "phrase": "올려", "meant": "fork main 푸시", "read_as": "PR",
+                     "after": ""} for i in (1, 2)]
+            (store / "lexicon.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+            data = json.dumps({"hook_event_name": "SessionStart", "cwd": str(project)})
+            context = self.run_hook(data, store)["hookSpecificOutput"]["additionalContext"]
+            self.assertIn('"올려" → fork main 푸시', context)
+            other = pathlib.Path(tmp) / "elsewhere"
+            other.mkdir()
+            data = json.dumps({"hook_event_name": "SessionStart", "cwd": str(other)})
+            self.assertNotIn("올려", self.run_hook(data, store)["hookSpecificOutput"]["additionalContext"])
+
+    def test_why_did_you_is_a_correction_signal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for prompt in ("왜 그랬어?", "이건 물어봤어야지", "README 수정해서 올려"):
+                result = self.run_hook(json.dumps({"hook_event_name": "UserPromptSubmit", "prompt": prompt}), tmp)
+                expected = prompt != "README 수정해서 올려"
+                self.assertEqual("ai-criteria-signal" in json.dumps(result, ensure_ascii=False), expected, prompt)
+
     def test_malformed_and_missing_cwd_fail_open(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(self.run_hook("not json", tmp), {})

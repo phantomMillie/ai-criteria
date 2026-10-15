@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Your words: `hear` records what one of the user's words actually meant (mostly from corrections, also from answers). `lexicon` shows the learned meanings as edges in three layers — flow (the step before) > project > person — with the same distinct-day tiers as criteria. Counter-examples demote, contest, or retire an edge. Costs (`--kind cost`) learn when this user wants to be asked.
+- New `ai-clarify` skill: split the instruction, find where it reads two ways, look the words up in the learned meanings, and ask only when nothing learned settles it and a wrong guess is costly. Otherwise act and state the reading in one line.
+- SessionStart injects the `ai-clarify` note (turn off with `"clarify_reminder": false`) and the learned words for the current project.
+- The correction hook also fires on "왜 그랬어", "물어봤어야", "묻지 마", "why did you", "should have asked", and tells the model to feed word corrections into `hear`.
+- New default tag `split-reading`. Export/import carry the learned words.
+- READMEs rewritten in plain conversational English and Korean: a framework that fits AI conversation to you as you talk.
 - Shared installer for Claude Code, Codex and Gemini CLI using one existing local store.
 - Native Codex SessionStart/UserPromptSubmit and Gemini SessionStart/BeforeAgent hooks with a common JSON adapter.
 - Preserve and back up existing global settings; idempotent hook merging and instruction fallback.

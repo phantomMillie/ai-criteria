@@ -5,6 +5,8 @@ description: Run the current input/judgment criteria as a gate before concluding
 
 # Pre-conclusion gate
 
+`ai-clarify` runs before the work (is the instruction read one way?). This gate runs before the conclusion (is the answer safe to state?).
+
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" criteria
 ```

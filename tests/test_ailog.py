@@ -130,6 +130,49 @@ class Store(unittest.TestCase):
             f.write("{broken\n")
         self.assertEqual(len(ailog.read_jsonl(self.root / "inbox.jsonl")), 1)
 
+    def words(self, *rows):
+        p = ailog.Paths(self.root)
+        ailog.ensure_store(p)
+        ailog.write_jsonl(p.lexicon, ailog.read_jsonl(p.lexicon) + [ailog.make_word(**r) for r in rows])
+        return p
+
+    def test_words_grow_from_corrections_by_distinct_days(self):
+        d = lambda day: datetime.datetime(2026, 10, day, 9, 0)
+        push = dict(phrase="올려", meant="fork main 푸시", read_as="PR", project="kit")
+        p = self.words(dict(push, now=d(1)), dict(push, now=d(1)))
+        e = ailog.lexicon_edges(ailog.read_jsonl(p.lexicon), ailog.DEFAULT_CONFIG)
+        self.assertEqual((e[0]["tier"], e[0]["layer"]), ("pending", "project"))   # same day = one observation
+        self.assertEqual(ailog.lexicon_text(p, "kit"), "")
+        self.words(dict(push, now=d(2)))
+        self.assertIn("provisional", ailog.lexicon_text(p, "kit"))
+        self.assertEqual(ailog.lexicon_text(p, "other"), "")                       # project layer stays in its project
+        self.words(dict(push, now=d(3), project="web"))
+        e = [x for x in ailog.lexicon_edges(ailog.read_jsonl(p.lexicon), ailog.DEFAULT_CONFIG) if x["meant"] == "fork main 푸시"][0]
+        self.assertEqual((e["tier"], e["layer"]), ("confirmed", "person"))         # 2 projects -> person layer
+
+    def test_flow_layer_and_counter_examples(self):
+        d = lambda day: datetime.datetime(2026, 10, day, 9, 0)
+        flow = dict(phrase="올려", meant="아직 안 올림, 열어서 보여주기", after="보여줘봐", project="kit")
+        p = self.words(dict(flow, now=d(1)), dict(flow, now=d(2)))
+        self.assertIn('after "보여줘봐"', ailog.lexicon_text(p, "kit"))
+        self.assertIn("· flow ·", ailog.lexicon_text(p, "kit"))
+        self.words(dict(phrase="올려", meant="main 푸시", read_as="아직 안 올림, 열어서 보여주기",
+                        after="보여줘봐", project="kit", now=d(3)))
+        self.assertNotIn("열어서 보여주기", ailog.lexicon_text(p, "kit"))             # corrected away -> contested
+        self.assertIn("contested", run(self.root, "lexicon", "--project", "kit"))
+
+    def test_hear_cli_cost_and_export_import(self):
+        out = run(self.root, "hear", "개인 fork main 푸시", "cheap", "--kind", "cost", "--project", "kit")
+        self.assertIn('cost: "개인 fork main 푸시" → cheap', out)
+        with self.assertRaises(SystemExit):
+            run(self.root, "hear", "올려", "maybe", "--kind", "cost")
+        self.assertIn("1 case(s)", run(self.root, "lexicon", "--all"))
+        dump = pathlib.Path(self.tmp.name) / "dump.json"
+        run(self.root, "export", "--out", str(dump))
+        other = pathlib.Path(self.tmp.name) / "other" / ".ai-criteria"
+        run(other, "import", str(dump)); run(other, "import", str(dump))
+        self.assertEqual(len(ailog.read_jsonl(ailog.Paths(other).lexicon)), 1)
+
     def test_iso_week(self):
         self.assertEqual(ailog.iso_week(datetime.date(2026, 10, 12)), "2026-W42")
 
