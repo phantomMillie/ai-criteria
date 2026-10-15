@@ -367,10 +367,34 @@ def format_edge(e):
 
 
 def lexicon_text(p, project=None):
-    """Edges worth injecting: provisional or confirmed, not contested or retired, visible in this project."""
+    """Edges worth injecting: every active edge visible in this project, pending included.
+    A single correction already changes the next session (the model states the reading, the user can fix it);
+    only contested and retired edges stay out."""
     edges = [e for e in lexicon_edges(read_jsonl(p.lexicon), load_config(p))
-             if e["tier"] != "pending" and e["status"] == "active" and edge_visible(e, project)]
+             if e["status"] == "active" and edge_visible(e, project)]
     return "\n".join(format_edge(e) for e in edges)
+
+
+def variant_groups(edges):
+    """Edges that are probably the same word written differently: same kind, and either the same meaning
+    or one normalized phrase contained in the other. The model proposes a merge; the user decides."""
+    groups, seen = [], set()
+    for i, a in enumerate(edges):
+        if i in seen:
+            continue
+        group = [a]
+        for j in range(i + 1, len(edges)):
+            b = edges[j]
+            if j in seen or b["kind"] != a["kind"]:
+                continue
+            pa, pb = norm_word(a["phrase"]), norm_word(b["phrase"])
+            if pa != pb and (norm_word(a["meant"]) == norm_word(b["meant"]) or pa in pb or pb in pa):
+                group.append(b)
+                seen.add(j)
+        if len(group) > 1:
+            seen.add(i)
+            groups.append(group)
+    return groups
 
 
 # ---------------------------------------------------------------- commands
@@ -404,6 +428,37 @@ def cmd_hear(a, p):
     for e in lexicon_edges(read_jsonl(p.lexicon), load_config(p)):
         if (e["kind"], norm_word(e["phrase"]), norm_word(e["after"]), norm_word(e["meant"])) == key:
             print("heard %s  (%d case(s) / %d day(s))" % (format_edge(e), e["cases"], e["days"]))
+
+
+def cmd_variants(a, p):
+    """Same word written differently ("정리" / "정리해줘" / "정리 좀"). They never add up until merged."""
+    groups = variant_groups(lexicon_edges(read_jsonl(p.lexicon), load_config(p)))
+    if not groups:
+        print("no variant groups")
+        return
+    for n, group in enumerate(groups, 1):
+        print("group %d" % n)
+        for e in group:
+            print("  %s  %d case(s) / %d day(s)" % (format_edge(e), e["cases"], e["days"]))
+        print('  merge: ailog.py merge-word "<variant>" "<the word to keep>"')
+
+
+def cmd_merge_word(a, p):
+    """Rewrite every observation of one phrase onto another so they count as one word. Ids and dates stay."""
+    rows = read_jsonl(p.lexicon)
+    src = norm_word(a.phrase)
+    hit = [r for r in rows if norm_word(r["phrase"]) == src]
+    if not hit:
+        sys.exit('no observations of "%s"' % a.phrase)
+    with locked(p):
+        for r in hit:
+            r["phrase"] = a.into.strip()
+        write_jsonl(p.lexicon, rows)
+    print('merged %d observation(s): "%s" → "%s"' % (len(hit), a.phrase, a.into))
+    key = (norm_word(a.into),)
+    for e in lexicon_edges(read_jsonl(p.lexicon), load_config(p)):
+        if (norm_word(e["phrase"]),) == key:
+            print("now %s  %d case(s) / %d day(s)" % (format_edge(e), e["cases"], e["days"]))
 
 
 def cmd_lexicon(a, p):
@@ -442,8 +497,8 @@ def cmd_status(a, p):
     words = read_jsonl(p.lexicon)
     if words:
         edges = lexicon_edges(words, load_config(p))
-        print("words: %d observations, %d edges (%d injected-ready)" % (
-            len(words), len(edges), sum(1 for e in edges if e["tier"] != "pending" and e["status"] == "active")))
+        print("words: %d observations, %d edges (%d injected, %d variant group(s) to merge)" % (
+            len(words), len(edges), sum(1 for e in edges if e["status"] == "active"), len(variant_groups(edges))))
 
 
 def cmd_rollup(a, p):
@@ -671,6 +726,9 @@ def build_parser():
     s = sub.add_parser("lexicon", help="what this user's words mean, by layer")
     s.add_argument("--phrase", default=""); s.add_argument("--project", default="")
     s.add_argument("--all", action="store_true", help="every project"); s.set_defaults(fn=cmd_lexicon)
+    sub.add_parser("variants", help="the same word written differently, to merge").set_defaults(fn=cmd_variants)
+    s = sub.add_parser("merge-word", help="count one phrase's observations under another")
+    s.add_argument("phrase"); s.add_argument("into"); s.set_defaults(fn=cmd_merge_word)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     s = sub.add_parser("rollup")
     s.add_argument("--dry-run", action="store_true"); s.add_argument("--keep", action="store_true")

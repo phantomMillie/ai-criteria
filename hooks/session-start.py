@@ -52,7 +52,8 @@ try:
         parts.append(
             "## This user's words — learned from their corrections\n\n"
             "What these words meant before. The narrowest layer wins (flow > project > person). "
-            "confirmed → act on it; provisional → act and state the reading in one line. "
+            "confirmed → act on it; provisional or pending → act on it and state the reading in one line "
+            "so the user can fix it (pending = corrected once so far). "
             "A `cost` entry replaces the default cheap/costly call for that action.\n\n" + words)
     if ailog.has_criteria(p):
         body = ailog.criteria_text(p, project)

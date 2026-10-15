@@ -63,11 +63,13 @@ class NativeHooks(unittest.TestCase):
             project.mkdir()
             rows = [{"id": str(i), "ts": "2026-10-0%d 09:00" % i, "project": "kit", "kind": "meaning",
                      "source": "correction", "phrase": "올려", "meant": "fork main 푸시", "read_as": "PR",
-                     "after": ""} for i in (1, 2)]
+                     "after": ""} for i in (1,)]
             (store / "lexicon.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
             data = json.dumps({"hook_event_name": "SessionStart", "cwd": str(project)})
             context = self.run_hook(data, store)["hookSpecificOutput"]["additionalContext"]
-            self.assertIn('"올려" → fork main 푸시', context)
+            self.assertIn('"올려" → fork main 푸시', context)                      # one correction is already injected
+            self.assertIn("pending", context)
+            self.assertIn("state the reading", context)
             other = pathlib.Path(tmp) / "elsewhere"
             other.mkdir()
             data = json.dumps({"hook_event_name": "SessionStart", "cwd": str(other)})

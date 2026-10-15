@@ -142,7 +142,7 @@ class Store(unittest.TestCase):
         p = self.words(dict(push, now=d(1)), dict(push, now=d(1)))
         e = ailog.lexicon_edges(ailog.read_jsonl(p.lexicon), ailog.DEFAULT_CONFIG)
         self.assertEqual((e[0]["tier"], e[0]["layer"]), ("pending", "project"))   # same day = one observation
-        self.assertEqual(ailog.lexicon_text(p, "kit"), "")
+        self.assertIn("pending", ailog.lexicon_text(p, "kit"))                     # one correction already shows up
         self.words(dict(push, now=d(2)))
         self.assertIn("provisional", ailog.lexicon_text(p, "kit"))
         self.assertEqual(ailog.lexicon_text(p, "other"), "")                       # project layer stays in its project
@@ -172,6 +172,26 @@ class Store(unittest.TestCase):
         other = pathlib.Path(self.tmp.name) / "other" / ".ai-criteria"
         run(other, "import", str(dump)); run(other, "import", str(dump))
         self.assertEqual(len(ailog.read_jsonl(ailog.Paths(other).lexicon)), 1)
+
+    def test_variants_and_merge_word_add_up_distinct_days(self):
+        d = lambda day: datetime.datetime(2026, 10, day, 9, 0)
+        meant = "중복 줄만 지운다"
+        p = self.words(dict(phrase="정리", meant=meant, project="kit", now=d(1)),
+                       dict(phrase="정리해줘", meant=meant, project="kit", now=d(2)),
+                       dict(phrase="정리 좀", meant=meant, project="kit", now=d(3)),
+                       dict(phrase="올려", meant="main 푸시", project="kit", now=d(3)))
+        self.assertIn("pending", ailog.lexicon_text(p, "kit"))                     # three pending edges, no provisional
+        self.assertNotIn("provisional", ailog.lexicon_text(p, "kit"))
+        out = run(self.root, "variants")
+        self.assertIn("group 1", out)
+        self.assertNotIn("올려", out)                                               # different meaning, different word
+        run(self.root, "merge-word", "정리해줘", "정리")
+        run(self.root, "merge-word", "정리 좀", "정리")
+        e = [x for x in ailog.lexicon_edges(ailog.read_jsonl(p.lexicon), ailog.DEFAULT_CONFIG) if x["phrase"] == "정리"]
+        self.assertEqual((len(e), e[0]["tier"], e[0]["days"]), (1, "confirmed", 3))  # ids and dates survived
+        self.assertEqual(run(self.root, "variants").strip(), "no variant groups")
+        with self.assertRaises(SystemExit):
+            run(self.root, "merge-word", "없는말", "정리")
 
     def test_iso_week(self):
         self.assertEqual(ailog.iso_week(datetime.date(2026, 10, 12)), "2026-W42")

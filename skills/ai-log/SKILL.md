@@ -43,10 +43,27 @@ python3 "$A" lexicon --phrase "<word>"            # reuse an existing meaning's 
 python3 "$A" hear "<word>" "<what it actually meant>" --read-as "<what you took it to mean>" [--after "<the step right before>"]
 ```
 
+- **The phrase is the user's own word, in its shortest form.** Observations only add up when the phrase is
+  written the same way every time, so strip the sentence down to the word that carried the meaning:
+  - ✗ `"설치 섹션 추가해"` (the whole sentence) · ✗ `"올려 (되묻기)"` (a form you invented)
+  - ○ `"올려"` · ○ `"정리"` · ○ `"clean it up"`
+  If a `lexicon --phrase` lookup already shows the word, reuse that exact phrase and that exact meaning text when it fits.
 - `--after` only when the meaning depends on the step before (e.g. "push it" right after "show me" meant *don't push yet*).
   That puts it in the **flow** layer. The project is recorded automatically; the person layer is earned by repeating across projects.
-- If the correction was about **asking** — "you should have asked" or "don't ask about that" — record the action's cost instead:
-  `python3 "$A" hear "<the action>" costly --kind cost` (or `cheap`).
+- If the correction was about **asking** — "you should have asked" or "don't ask about that" — record the action's cost
+  under the **same word**: `python3 "$A" hear "올려" cheap --kind cost` (or `costly`). Not a new phrase.
 - One `hear` per word per correction. Do not invent meanings the user did not state.
 
-Report in one line afterwards. No apology, no promise.
+## Say the recorded word back
+
+What you wrote down is the user's word, so they get to see it. Right after `hear`, one line in their language, exact form:
+
+```text
+"올려" = origin main에 푸시, 로 기억할게.
+"올려" = 묻지 말고 하기(cheap), 로 기억할게.
+```
+
+That line is the same device `ai-clarify` uses for a reading: the user can fix the word's form or its meaning on the spot,
+before it piles up wrong. If they do, run `hear` again with the fixed form; the earlier row stays as data.
+
+Report the case in one line afterwards, then this line. No apology, no promise.

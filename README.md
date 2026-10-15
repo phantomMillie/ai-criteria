@@ -108,7 +108,7 @@ Words and criteria grow by the same rules. Repeats inside one conversation aren'
 
 | The same meaning / root cause | What happens |
 |---|---|
-| once, or many times in one day | pending, not used yet |
+| once, or many times in one day | pending. A word is used already, with the reading stated in one line so you can fix it; a criterion is not |
 | on 2 different days | provisional: used, with the reading stated in one line |
 | on 3 different days | confirmed: used without asking |
 | in 2+ projects | moves up to the person layer / a global criterion |
@@ -248,7 +248,10 @@ Default root-cause tags: `missed-evidence` · `misread-record` · `oversimplifie
 No. Even with an unknown word, if the action is easy to fix it states its reading in one line and goes ahead. It only asks when the word is unknown *and* the action is hard to undo.
 
 **Will it bloat my context?**<br>
-A short `ai-clarify` paragraph at session start, plus only the provisional/confirmed words and criteria for this project. Pending, contested, and retired items are never injected.
+A short `ai-clarify` paragraph at session start, plus this project's words (pending ones too, marked so the model states the reading) and its provisional/confirmed criteria. Contested and retired items are never injected.
+
+**Why does it say my word back after a correction?**<br>
+What it wrote down is your word, so you get to see it: `"올려" = push to origin main, got it.` Fix the form or the meaning right there and it records the fix. The same word written three ways would never add up, so `ai-rollup` also proposes merging variants (`variants` / `merge-word`) and merges only on your yes.
 
 **What about false positives from the correction detector?**<br>
 The hook only raises a short signal on every prompt; it does not filter by keywords, because wording, slang and language differ for every user. The model decides. Plain questions and ordinary requests are ignored, so nothing gets logged.

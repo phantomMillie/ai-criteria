@@ -38,8 +38,11 @@ Run them in order. Most instructions pass through in seconds with nothing to sho
    | What the words graph says | Wrong guess is cheap | Wrong guess is costly |
    |---|---|---|
    | confirmed reading | just do it | do it, state the reading in one line |
-   | provisional reading | do it, state the reading in one line | do it, state the reading in one line |
+   | provisional or pending reading | do it, state the reading in one line | do it, state the reading in one line |
    | nothing / layers conflict / recently corrected | do it, state the reading in one line | **ask** |
+
+   A pending reading is one correction so far. It still counts: the user already told you once, and the one-line
+   reading lets them fix it if that once was special.
 
    Only one cell asks. Put all questions in one message, each with options and a recommended one.
 9. **Record answers.** When the user answers a question, record it (one observation, not a correction):
@@ -47,6 +50,9 @@ Run them in order. Most instructions pass through in seconds with nothing to sho
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" hear "<word>" "<what it meant>" --source answer [--after "<previous step>"]
    ```
+
+   The phrase is the user's own word in its shortest form ("올려", not the sentence), and you say the recorded
+   word back in one line (`"올려" = origin main에 푸시, 로 기억할게.`) so they can fix it. See `ai-log`.
 
 ## Output
 
