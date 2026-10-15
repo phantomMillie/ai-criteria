@@ -33,7 +33,7 @@ try:
 except ImportError:  # Windows
     fcntl = None
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 SCHEMA = 1
 
 DEFAULT_TAGS = [

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 - Your words: `hear` records what one of the user's words actually meant (mostly from corrections, also from answers). `lexicon` shows the learned meanings as edges in three layers — flow (the step before) > project > person — with the same distinct-day tiers as criteria. Counter-examples demote, contest, or retire an edge. Costs (`--kind cost`) learn when this user wants to be asked.
 - New `ai-clarify` skill: split the instruction, find where it reads two ways, look the words up in the learned meanings, and ask only when nothing learned settles it and a wrong guess is costly. Otherwise act and state the reading in one line.
 - SessionStart injects the `ai-clarify` note (turn off with `"clarify_reminder": false`) and the learned words for the current project.
