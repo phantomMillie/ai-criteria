@@ -9,14 +9,15 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 
 def sync_shared_install():
-    """Keep the Codex/Gemini copy (~/.local/share/ai-criteria) equal to this plugin version.
+    """Set up and keep current the Codex/Gemini copy (~/.local/share/ai-criteria).
 
-    Only when that copy exists, i.e. the user ran install_shared.py once. Updating the Claude
-    plugin must not leave the other agents on old hooks and skills."""
+    Installing the Claude Code plugin is the only install step: the first session start sees a
+    `~/.codex` or `~/.gemini` folder and runs the shared installer; later starts refresh the copy
+    whenever the plugin version differs. Machines without those agents are left untouched."""
     try:
         home = pathlib.Path.home()
         target = home / ".local/share/ai-criteria"
-        if not target.is_dir():
+        if not target.is_dir() and not any((home / d).is_dir() for d in (".codex", ".gemini")):
             return
         pairs = [(src, target / folder / src.name)
                  for folder in ("scripts", "hooks") for src in (ROOT / folder).glob("*.py")]

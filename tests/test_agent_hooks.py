@@ -99,6 +99,19 @@ class NativeHooks(unittest.TestCase):
             self.assertTrue((home / ".agents/skills/ai-log/SKILL.md").exists())
             self.assertTrue((home / ".codex/hooks.json").exists())
 
+    def test_startup_installs_for_codex_and_gemini_on_first_run(self):
+        # Installing the Claude plugin is the only step: a ~/.codex or ~/.gemini folder is enough.
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp) / "home"
+            (home / ".codex").mkdir(parents=True)
+            env = dict(os.environ, AI_CRITERIA_HOME=tmp, HOME=str(home))
+            subprocess.run([sys.executable, str(ROOT / "hooks/session-start.py")],
+                           input="{}", text=True, capture_output=True, env=env, check=True)
+            self.assertTrue((home / ".local/share/ai-criteria/hooks/agent-hook.py").exists())
+            self.assertTrue((home / ".codex/hooks.json").exists())
+            self.assertIn("ai-criteria", (home / ".codex/AGENTS.md").read_text())
+            self.assertTrue((home / ".agents/skills/ai-clarify/SKILL.md").exists())
+
     def test_startup_leaves_machines_without_shared_install_alone(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = pathlib.Path(tmp) / "home"
