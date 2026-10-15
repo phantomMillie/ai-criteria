@@ -11,6 +11,10 @@
 - Native Codex SessionStart/UserPromptSubmit and Gemini SessionStart/BeforeAgent hooks with a common JSON adapter.
 - Preserve and back up existing global settings; idempotent hook merging and instruction fallback.
 - 20 tests covering adapters, project scoping, fail-open behavior and installation safety.
+- The correction hook missed implicit Korean pushback (`비어있다며;;`, `~는데?`, `~잖아`), so weaker models never logged those corrections. Added those patterns.
+- New quote-back detector: when the prompt pastes a chunk of a recent AI answer (last 6 turns, via `transcript_path`) plus a short reaction, the signal fires even without keywords. Harness-generated prompts are skipped. On 2,900+ real prompts it fires on 0.8% of the ones the keywords miss.
+- Long pastes no longer hide the user's comment: the keyword check reads both the start and the end of the prompt. The signal names the detector that fired.
+- 10 hook tests.
 
 ## 0.4.0
 - Evidence tiers: pending / provisional (2 cases, 2 days) / confirmed (3 cases, 3 days) / global (2+ projects) / retired. Independence is counted in distinct days, not raw cases

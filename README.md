@@ -251,6 +251,7 @@ A short `ai-clarify` paragraph at session start, plus only the provisional/confi
 
 **What about false positives from the correction detector?**<br>
 The hook only raises a signal; the model decides. Plain questions and ordinary requests are ignored, so nothing gets logged.
+It fires on pushback wording, including implicit Korean pushback like `~다며`, `~잖아` and `;;`, and when you paste back part of a recent answer with a short reaction.
 
 **How do I turn off the `ai-clarify` note?**<br>
 Set `"clarify_reminder": false` in `~/.ai-criteria/config.json`.
