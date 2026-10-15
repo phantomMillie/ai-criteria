@@ -81,6 +81,32 @@ class NativeHooks(unittest.TestCase):
                 result = self.run_hook(json.dumps({"hook_event_name": "UserPromptSubmit", "prompt": prompt}), tmp)
                 self.assertIn("ai-criteria-signal", json.dumps(result, ensure_ascii=False), prompt)
 
+    def test_startup_refreshes_stale_shared_install(self):
+        # A Codex/Gemini copy made by install_shared.py must follow the plugin version automatically.
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp) / "home"
+            store = pathlib.Path(tmp) / "store"
+            store.mkdir()
+            copy = home / ".local/share/ai-criteria/hooks/user-prompt.py"
+            copy.parent.mkdir(parents=True)
+            copy.write_text("# old version\n")
+            env = dict(os.environ, AI_CRITERIA_HOME=str(store), HOME=str(home))
+            subprocess.run([sys.executable, str(ROOT / "hooks/session-start.py")],
+                           input="{}", text=True, capture_output=True, env=env, check=True)
+            self.assertEqual(copy.read_bytes(), (ROOT / "hooks/user-prompt.py").read_bytes())
+            self.assertTrue((home / ".agents/skills/ai-log/SKILL.md").exists())
+            self.assertTrue((home / ".codex/hooks.json").exists())
+
+    def test_startup_leaves_machines_without_shared_install_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp) / "home"
+            home.mkdir()
+            env = dict(os.environ, AI_CRITERIA_HOME=tmp, HOME=str(home))
+            subprocess.run([sys.executable, str(ROOT / "hooks/session-start.py")],
+                           input="{}", text=True, capture_output=True, env=env, check=True)
+            for relative in (".local/share/ai-criteria", ".codex", ".gemini", ".agents"):
+                self.assertFalse((home / relative).exists(), relative)
+
     def test_malformed_and_missing_cwd_fail_open(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(self.run_hook("not json", tmp), {})

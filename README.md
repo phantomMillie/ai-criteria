@@ -188,6 +188,7 @@ python3 scripts/install_shared.py
 - Six portable skills go into `~/.agents/skills`, the runtime into `~/.local/share/ai-criteria`.
 - A managed block is added to `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`. Existing instructions stay and the old files are backed up.
 - Hooks are merged into `~/.codex/hooks.json` and `~/.gemini/settings.json`. Re-running doesn't duplicate anything.
+- Run it once. After that, every plugin update is applied to the Codex and Gemini copies at the next Claude Code session start.
 - In Codex, trust the new hooks with `/hooks`. The installer never grants trust for you.
 - If you already have your own skill with the same name, it stops instead of overwriting. It never touches your cases, words, or criteria.
 

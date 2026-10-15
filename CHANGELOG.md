@@ -13,6 +13,7 @@
 - 20 tests covering adapters, project scoping, fail-open behavior and installation safety.
 - The correction hook no longer gates on a keyword list. A keyword list cannot follow how people really talk (slang, swearing, "why isn't X working", other languages), so most real corrections never produced a signal and were never logged. Now every user prompt carries a short signal and the model judges whether it is a correction; harness-generated prompts are skipped. The hook still writes nothing itself.
 - Hook tests cover any-language pass-through, harness-prompt silence and fail-open on bad input.
+- The Codex/Gemini copy (`~/.local/share/ai-criteria`, made once by `install_shared.py`) no longer goes stale: the Claude SessionStart hook refreshes it whenever the plugin version differs, so a plugin update applies to all three agents without re-running the installer.
 
 ## 0.4.0
 - Evidence tiers: pending / provisional (2 cases, 2 days) / confirmed (3 cases, 3 days) / global (2+ projects) / retired. Independence is counted in distinct days, not raw cases

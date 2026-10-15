@@ -4,9 +4,36 @@
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "scripts"))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+
+
+def sync_shared_install():
+    """Keep the Codex/Gemini copy (~/.local/share/ai-criteria) equal to this plugin version.
+
+    Only when that copy exists, i.e. the user ran install_shared.py once. Updating the Claude
+    plugin must not leave the other agents on old hooks and skills."""
+    try:
+        home = pathlib.Path.home()
+        target = home / ".local/share/ai-criteria"
+        if not target.is_dir():
+            return
+        pairs = [(src, target / folder / src.name)
+                 for folder in ("scripts", "hooks") for src in (ROOT / folder).glob("*.py")]
+        pairs += [(src, target / "skills" / src.parent.name / "SKILL.md")
+                  for src in (ROOT / "skills").glob("*/SKILL.md")]
+        if all(dst.exists() and dst.read_bytes() == src.read_bytes() for src, dst in pairs):
+            return
+        import install_shared
+        install_shared.install(home, ROOT)
+    except Exception:
+        pass        # a failed sync must never block the session
+
+
 try:
     import ailog
+
+    sync_shared_install()
 
     p = ailog.Paths()
     cfg = ailog.load_config(p)

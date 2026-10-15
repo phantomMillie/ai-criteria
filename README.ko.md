@@ -188,6 +188,7 @@ python3 scripts/install_shared.py
 - 공용 스킬 6개가 `~/.agents/skills`에, 실행 파일이 `~/.local/share/ai-criteria`에 들어가요.
 - `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`에 관리 블록을 추가해요. 원래 지침은 그대로 두고 바꾸기 전 파일은 백업해요.
 - 훅은 `~/.codex/hooks.json`, `~/.gemini/settings.json`에 합쳐지고, 다시 돌려도 중복되지 않아요.
+- 한 번만 돌리면 돼요. 그 뒤 플러그인이 업데이트되면 Claude Code 세션 시작 때 Codex·Gemini 쪽 복사본도 같이 맞춰져요.
 - Codex는 `/hooks`에서 새 훅을 직접 신뢰해 줘야 돌아가요. 설치기가 대신 승인하지 않아요.
 - 같은 이름의 내 스킬이 있으면 덮어쓰지 않고 멈춰요. 기록·말 그래프·기준 데이터는 건드리지 않아요.
 
