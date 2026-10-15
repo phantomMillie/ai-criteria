@@ -25,8 +25,11 @@ def sync_shared_install():
                   for src in (ROOT / "skills").glob("*/SKILL.md")]
         if all(dst.exists() and dst.read_bytes() == src.read_bytes() for src, dst in pairs):
             return
+        import contextlib
+        import io
         import install_shared
-        install_shared.install(home, ROOT)
+        with contextlib.redirect_stdout(io.StringIO()):   # its "installed ..." lines are not context
+            install_shared.install(home, ROOT)
     except Exception:
         pass        # a failed sync must never block the session
 

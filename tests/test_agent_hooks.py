@@ -105,8 +105,9 @@ class NativeHooks(unittest.TestCase):
             home = pathlib.Path(tmp) / "home"
             (home / ".codex").mkdir(parents=True)
             env = dict(os.environ, AI_CRITERIA_HOME=tmp, HOME=str(home))
-            subprocess.run([sys.executable, str(ROOT / "hooks/session-start.py")],
-                           input="{}", text=True, capture_output=True, env=env, check=True)
+            out = subprocess.run([sys.executable, str(ROOT / "hooks/session-start.py")],
+                                 input="{}", text=True, capture_output=True, env=env, check=True).stdout
+            self.assertNotIn("installed", out)                                       # installer output is not context
             self.assertTrue((home / ".local/share/ai-criteria/hooks/agent-hook.py").exists())
             self.assertTrue((home / ".codex/hooks.json").exists())
             self.assertIn("ai-criteria", (home / ".codex/AGENTS.md").read_text())
