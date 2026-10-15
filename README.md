@@ -250,7 +250,7 @@ No. Even with an unknown word, if the action is easy to fix it states its readin
 A short `ai-clarify` paragraph at session start, plus only the provisional/confirmed words and criteria for this project. Pending, contested, and retired items are never injected.
 
 **What about false positives from the correction detector?**<br>
-The hook only raises a signal; the model decides. Plain questions and ordinary requests are ignored, so nothing gets logged.
+The hook only raises a short signal on every prompt; it does not filter by keywords, because wording, slang and language differ for every user. The model decides. Plain questions and ordinary requests are ignored, so nothing gets logged.
 It fires on pushback wording, including implicit Korean pushback like `~다며`, `~잖아` and `;;`, and when you paste back part of a recent answer with a short reaction.
 
 **How do I turn off the `ai-clarify` note?**<br>

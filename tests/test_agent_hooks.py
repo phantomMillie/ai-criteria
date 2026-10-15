@@ -24,8 +24,10 @@ class NativeHooks(unittest.TestCase):
                                                   "prompt": "틀렸어, 두 번째 파일 빠뜨렸어"}), tmp)
                 self.assertIn("ai-criteria-signal", result["hookSpecificOutput"]["additionalContext"])
                 self.assertEqual(result["hookSpecificOutput"]["hookEventName"], event)
+                # Harness-generated prompts get no signal
                 self.assertEqual(self.run_hook(json.dumps({"hook_event_name": event,
-                                                          "prompt": "안녕하세요"}), tmp), {})
+                                                          "prompt": "<task-notification>done"}), tmp), {})
+            # The hook only signals; it never writes a case itself
             self.assertFalse((pathlib.Path(tmp) / "inbox.jsonl").exists())
 
     def test_startup_uses_payload_project_and_excludes_retired(self):
@@ -71,12 +73,13 @@ class NativeHooks(unittest.TestCase):
             data = json.dumps({"hook_event_name": "SessionStart", "cwd": str(other)})
             self.assertNotIn("올려", self.run_hook(data, store)["hookSpecificOutput"]["additionalContext"])
 
-    def test_why_did_you_is_a_correction_signal(self):
+    def test_every_user_prompt_gets_the_signal_model_judges(self):
+        # No keyword list: slang, swearing, any language and plain requests all pass through;
+        # the model decides whether it is a correction.
         with tempfile.TemporaryDirectory() as tmp:
-            for prompt in ("왜 그랬어?", "이건 물어봤어야지", "README 수정해서 올려"):
+            for prompt in ("왜 그랬어?", "이건 물어봤어야지", "README 수정해서 올려", "왜 정상동작안해?", "안물어봄"):
                 result = self.run_hook(json.dumps({"hook_event_name": "UserPromptSubmit", "prompt": prompt}), tmp)
-                expected = prompt != "README 수정해서 올려"
-                self.assertEqual("ai-criteria-signal" in json.dumps(result, ensure_ascii=False), expected, prompt)
+                self.assertIn("ai-criteria-signal", json.dumps(result, ensure_ascii=False), prompt)
 
     def test_malformed_and_missing_cwd_fail_open(self):
         with tempfile.TemporaryDirectory() as tmp:
