@@ -454,6 +454,9 @@ def cmd_hear(a, p):
     ensure_store(p)
     if a.kind == "cost" and norm_word(a.meant) not in COST_VALUES:
         sys.exit("a cost entry means `cheap` or `costly`")
+    if a.kind == "cost" and not a.on.strip():
+        sys.exit('a cost entry needs --on <target>: "don\'t ask" was said about one thing (build/, this repo\'s main), '
+                 'not about every delete or push')
     row = make_word(a.phrase, a.meant, a.project or project_name(), a.kind, a.source, a.read_as, a.after, a.on)
     with locked(p):
         new = not p.lexicon.exists()

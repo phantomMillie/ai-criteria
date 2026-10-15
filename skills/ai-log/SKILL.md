@@ -56,10 +56,13 @@ python3 "$A" hear "<word>" "<what it actually meant>" --read-as "<what you took 
   - ✗ `"설치 섹션 추가해"` (the whole sentence) · ✗ `"올려 (되묻기)"` (a form you invented)
   - ○ `"올려"` · ○ `"정리"` · ○ `"clean it up"`
   If a `lexicon --phrase` lookup already shows the word, reuse that exact phrase and that exact meaning text when it fits.
-- `--after` only when the meaning depends on the step before (e.g. "push it" right after "show me" meant *don't push yet*).
-  That puts it in the **flow** layer. The project is recorded automatically; the person layer is earned by repeating across projects.
+- `--after` only when the meaning depends on the **user's previous instruction** (e.g. "push it" right after "show me"
+  meant *don't push yet*). It is their earlier words, never another word from the same sentence: for "정리하고 올려"
+  record "정리" and "올려" as two plain words, not `"올려" --after "정리"`. That puts it in the **flow** layer.
+  The project is recorded automatically; the person layer is earned by repeating across projects.
 - If the correction was about **asking** — "you should have asked" or "don't ask about that" — record the action's cost
-  under the **same word**: `python3 "$A" hear "올려" cheap --kind cost` (or `costly`). Not a new phrase.
+  under the **same word** and **with the target it was said about**: `python3 "$A" hear "지워" cheap --kind cost --on build/`.
+  "Don't ask" about build/ is not "don't ask" about src/ or a database; the script refuses a cost entry without `--on`.
 - One `hear` per word per correction. Do not invent meanings the user did not state.
 
 ## Say the recorded word back

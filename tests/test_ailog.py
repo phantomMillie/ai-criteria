@@ -162,10 +162,13 @@ class Store(unittest.TestCase):
         self.assertIn("contested", run(self.root, "lexicon", "--project", "kit"))
 
     def test_hear_cli_cost_and_export_import(self):
-        out = run(self.root, "hear", "개인 fork main 푸시", "cheap", "--kind", "cost", "--project", "kit")
-        self.assertIn('cost: "개인 fork main 푸시" → cheap', out)
+        out = run(self.root, "hear", "올려", "cheap", "--kind", "cost", "--on", "개인 fork main", "--project", "kit")
+        self.assertIn('cost: "올려" → cheap', out)
+        self.assertIn("(on: 개인 fork main)", out)
         with self.assertRaises(SystemExit):
-            run(self.root, "hear", "올려", "maybe", "--kind", "cost")
+            run(self.root, "hear", "올려", "maybe", "--kind", "cost", "--on", "x")
+        with self.assertRaises(SystemExit):                                          # "don't ask" is about one target
+            run(self.root, "hear", "지워", "cheap", "--kind", "cost")
         self.assertIn("1 case(s)", run(self.root, "lexicon", "--all"))
         dump = pathlib.Path(self.tmp.name) / "dump.json"
         run(self.root, "export", "--out", str(dump))
