@@ -255,6 +255,9 @@ A short `ai-clarify` paragraph at session start, plus this project's words (pend
 **Why does it say my word back after a correction?**<br>
 What it wrote down is your word, so you get to see it: `"올려" = push to origin main, got it.` Fix the form or the meaning right there and it records the fix. The same word written three ways would never add up, so `ai-rollup` also proposes merging variants (`variants` / `merge-word`) and merges only on your yes.
 
+**Can I speed it up by telling it my wording in advance?**<br>
+No, that tangles it. Words are learned only from corrections during real work. An answer given in the abstract ("what does 'clean up' usually mean to you?") disagrees with how you actually use the word later, ends up contested, and only makes the injected list longer. Just work as usual and correct it when it is wrong.
+
 **What about false positives from the correction detector?**<br>
 The hook only raises a short signal on every prompt; it does not filter by keywords, because wording, slang and language differ for every user. The model decides. Plain questions and ordinary requests are ignored, so nothing gets logged.
 It fires on pushback wording, including implicit Korean pushback like `~다며`, `~잖아` and `;;`, and when you paste back part of a recent answer with a short reaction.

@@ -9,6 +9,11 @@ description: Log a case where the AI's output turned out wrong, as three fields 
 
 The moment the user overturns one of your conclusions. Log it right there — it cannot be reconstructed from memory later.
 
+**Never interview.** Do not ask "what does '정리' usually mean to you?" to fill the store in advance. A word's meaning
+comes from a real instruction in a real flow and project; an answer given in the abstract disagrees with it later and
+turns into contested edges and a long injected list. The user just works and corrects you; that is the whole input.
+If they ask for a "get to know my wording" chat, say that: work as usual, correct me when I'm wrong, it learns from that.
+
 ## Fill in
 
 ```bash

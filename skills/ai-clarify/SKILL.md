@@ -74,6 +74,7 @@ or, in the one asking cell:
 
 - **Never pick a reading silently.** Evidence closes it, or you state the reading in one line, or you ask.
 - **Do not ask what is already settled.** Learned words, the conversation, the code, or "don't ask, just do it" settle it.
+- **Do not interview.** Words are learned from real instructions and corrections, never from "what does X usually mean to you?".
 - **One reading per split goes forward.** Do not do every reading "to be safe".
 - When the user corrects a reading ("wrong", "I meant", "why did you", "you should have asked", "don't ask about that"),
   `ai-log` records it **and** feeds it back here with `hear`. See the `ai-log` skill.
