@@ -73,11 +73,22 @@ def install(home, source, configure_codex_permissions=False):
             files[target / folder / src.name] = src.read_bytes()
     for name in ("LICENSE", "README.md", "README.ko.md"):
         files[target / name] = (source / name).read_bytes()
+    gemini_config = home / ".gemini/config"
+    gemini_skills = gemini_config / "skills"
     for src in (source / "skills").glob("*/SKILL.md"):
         files[target / "skills" / src.parent.name / "SKILL.md"] = src.read_bytes()
         # Absolute installed path avoids shell-variable differences between agents.
         body = src.read_text().replace("${CLAUDE_PLUGIN_ROOT}", str(target))
         files[skill_root / src.parent.name / "SKILL.md"] = body.encode()
+        files[gemini_skills / src.parent.name / "SKILL.md"] = body.encode()
+    gemini_skills_json = gemini_config / "skills.json"
+    old_gemini_skills = json.loads(gemini_skills_json.read_text()) if gemini_skills_json.exists() else {"entries": []}
+    gemini_entries = old_gemini_skills.setdefault("entries", [])
+    existing_paths = [e.get("path") for e in gemini_entries if isinstance(e, dict)]
+    skill_root_str = str(skill_root)
+    if skill_root_str not in existing_paths:
+        gemini_entries.append({"path": skill_root_str})
+    files[gemini_skills_json] = (json.dumps(old_gemini_skills, indent=2, ensure_ascii=False) + "\n").encode()
     files[target / "codex-permissions.toml"] = snippet([data_root]).encode()
     policy = f"""{START}
 # ai-criteria — shared with Claude Code, Codex and Gemini CLI
@@ -118,7 +129,7 @@ Do not automatically roll up, promote, retire, or export existing data just beca
     for path in files:
         if path.is_symlink():
             raise ValueError("Refusing symlink destination: " + str(path))
-        if path.is_file() and path.is_relative_to(skill_root):
+        if path.is_file() and (path.is_relative_to(skill_root) or path.is_relative_to(gemini_skills)):
             existing = path.read_text()
             if str(target) not in existing:
                 raise ValueError("Existing skill needs manual reconciliation: " + str(path))

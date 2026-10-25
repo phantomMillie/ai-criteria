@@ -2,6 +2,7 @@
 
 ## 0.5.1
 - Preserve existing Codex/Gemini hook positions and custom handler settings when merging updates.
+- Register skills in Antigravity global discovery directory (`~/.gemini/config/skills`) and declared manifest (`~/.gemini/config/skills.json`).
 - Generate machine-local Codex data-access snippets without changing approval policies or enabling full access.
 - Add opt-in permission configuration with backups, existing-profile/read-only safeguards and Python 3.11+ validation.
 - Cover mixed hooks, paths with spaces, repeated installs and preserved shared data in regression tests.

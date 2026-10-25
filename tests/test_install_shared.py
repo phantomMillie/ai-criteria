@@ -35,6 +35,10 @@ class SharedInstallTests(unittest.TestCase):
             self.assertEqual((store / "inbox.jsonl").read_text(), "existing-data\n")
             skills = list((home / ".agents/skills").glob("*/SKILL.md"))
             self.assertEqual(len(skills), 6)
+            gemini_skills = list((home / ".gemini/config/skills").glob("*/SKILL.md"))
+            self.assertEqual(len(gemini_skills), 6)
+            gemini_skills_json = json.loads((home / ".gemini/config/skills.json").read_text())
+            self.assertTrue(any(pathlib.Path(e.get("path")).resolve() == (home / ".agents/skills").resolve() for e in gemini_skills_json.get("entries", [])))
             self.assertIn(b"ai-clarify", before)
             for skill in skills:
                 self.assertNotIn("CLAUDE_PLUGIN_ROOT", skill.read_text())

@@ -189,7 +189,7 @@ python3 scripts/install_shared.py
 ```
 
 - 세 도구가 같은 `~/.ai-criteria`를 써요. 어느 도구에서 고쳐 줘도 다 같이 맞춰져요.
-- 공용 스킬 6개가 `~/.agents/skills`에, 실행 파일이 `~/.local/share/ai-criteria`에 들어가요.
+- 공용 스킬 6개가 `~/.agents/skills` 및 Antigravity 글로벌 경로(`~/.gemini/config/skills`, `~/.gemini/config/skills.json`)에 등록되고, 실행 파일이 `~/.local/share/ai-criteria`에 들어가요.
 - `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`에 관리 블록을 추가해요. 원래 지침은 그대로 두고 바꾸기 전 파일은 백업해요.
 - 훅은 `~/.codex/hooks.json`, `~/.gemini/settings.json`에 합쳐지고, 다시 돌려도 중복되지 않아요.
 - 플러그인이 업데이트되면 Claude Code 세션 시작 때 Codex·Gemini 쪽 복사본도 같이 맞춰져요.
