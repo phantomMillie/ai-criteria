@@ -3,6 +3,8 @@ import json
 import pathlib
 import tempfile
 import unittest
+import os
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("installer", ROOT / "scripts/install_shared.py")
@@ -56,3 +58,42 @@ class SharedInstallTests(unittest.TestCase):
                 installer.install(home, ROOT)
             self.assertFalse((home / ".codex/AGENTS.md").exists())
             self.assertFalse((home / ".local/share/ai-criteria").exists())
+
+
+    def test_foreign_hook_order_and_own_trust_position_are_stable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp)
+            installer.install(home, ROOT)
+            path = home / ".codex/hooks.json"
+            data = json.loads(path.read_text())
+            for event in ("SessionStart", "UserPromptSubmit"):
+                data["hooks"][event].append({"matcher": "kept", "hooks": [{"type": "command", "command": "echo after"}]})
+            path.write_text(json.dumps(data))
+            installer.install(home, ROOT)
+            self.assertEqual(data, json.loads(path.read_text()))
+            self.assertEqual(json.loads(path.read_text())["hooks"]["SessionStart"][1]["hooks"][0]["command"], "echo after")
+
+    @unittest.skipUnless(importlib.util.find_spec('tomllib'), 'optional permission merge needs Python 3.11+')
+    def test_optional_permissions_leave_data_and_approval_policy_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp)
+            config = home / ".codex/config.toml"
+            config.parent.mkdir()
+            config.write_text('approval_policy = "never"\nmodel = "kept"\n')
+            installer.install(home, ROOT, configure_codex_permissions=True)
+            self.assertIn('approval_policy = "never"', config.read_text())
+            self.assertIn(str(home / '.ai-criteria'), config.read_text())
+            self.assertFalse((home / '.ai-criteria').exists())
+
+
+    @unittest.skipUnless(importlib.util.find_spec('tomllib'), 'optional permission merge needs Python 3.11+')
+    def test_custom_shared_store_path_is_used_without_creating_or_copying_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pathlib.Path(tmp)
+            custom = home / 'custom records space'
+            with mock.patch.dict(os.environ, {'AI_CRITERIA_HOME': str(custom)}):
+                installer.install(home, ROOT, configure_codex_permissions=True)
+            config = (home / '.codex/config.toml').read_text()
+            self.assertIn(str(custom), config)
+            self.assertFalse(custom.exists())
+            self.assertFalse((home / '.ai-criteria').exists())

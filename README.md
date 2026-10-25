@@ -196,6 +196,15 @@ python3 scripts/install_shared.py
 - In Codex, trust the new hooks with `/hooks`. The installer never grants trust for you.
 - If you already have your own skill with the same name, it stops instead of overwriting. It never touches your cases, words, or criteria.
 
+Skill discovery and filesystem access are separate. The installer generates `~/.local/share/ai-criteria/codex-permissions.toml` using this machine's home directory (or the configured `AI_CRITERIA_HOME`). It does **not** silently change Codex approval policy or enable full access. To grant only the shared data directory in legacy workspace-write settings, opt in with Python 3.11+:
+
+```bash
+python3 scripts/install_shared.py --configure-codex-permissions
+```
+
+The optional merge preserves existing model, network, approval and other write-root settings and backs up `config.toml`. Existing read-only modes or named permission profiles are not replaced: configure the selected profile or app permission mode explicitly. Managed/session rules can still override user config. Restart Codex and trust the hooks in `/hooks`; saying “I grant permission” in a chat does not change its sandbox. Installation and the test suite require Python 3.9+; the opt-in TOML merge requires Python 3.11+. No local cases, learned words, or criteria are bundled or uploaded.
+
+
 </details>
 
 <details>

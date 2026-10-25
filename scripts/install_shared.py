@@ -6,15 +6,25 @@ import json
 import pathlib
 import shlex
 import shutil
+import os
+import sys
+
+try:
+    from codex_permissions import configure, snippet
+except ImportError:
+    import sys
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from codex_permissions import configure, snippet
 
 START = "<!-- ai-criteria:start -->"
 END = "<!-- ai-criteria:end -->"
 
 
-def install(home, source):
+def install(home, source, configure_codex_permissions=False):
     home = pathlib.Path(home).resolve()
     target = home / ".local/share/ai-criteria"
     skill_root = home / ".agents/skills"
+    data_root = pathlib.Path(os.environ.get("AI_CRITERIA_HOME", str(home / ".ai-criteria"))).expanduser().resolve()
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     backup = home / ".local/share/ai-criteria-backups" / timestamp
     files = {}
@@ -25,19 +35,37 @@ def install(home, source):
         config = json.loads(path.read_text()) if path.exists() else {}
         hooks = config.setdefault("hooks", {})
         for event in ("SessionStart", prompt_event):
-            groups = []
-            for group in hooks.get(event, []):
-                group = dict(group)
-                group["hooks"] = [h for h in group["hooks"] if h.get("command") != command]
-                if group["hooks"]:
-                    groups.append(group)
             handler = {"type": "command", "command": command, "timeout": timeout}
             if prompt_event == "BeforeAgent":
                 handler["name"] = "ai-criteria-" + event
             else:
+                if os.name == "nt":
+                    quote = lambda value: "'" + str(value).replace("'", "''") + "'"
+                    handler["commandWindows"] = "& " + quote(sys.executable) + " " + quote(target / "hooks/agent-hook.py")
                 handler["statusMessage"] = "ai-criteria: " + event
-                handler["additionalContextLimit"] = 0
-            groups.append({"hooks": [handler]})
+                handler["additionalContextLimit"] = 2500
+            # Keep existing group/handler positions: Codex trust identities include indexes.
+            groups = []
+            found = False
+            for group in hooks.get(event, []):
+                group = dict(group)
+                handlers = []
+                for current in group.get("hooks", []):
+                    if current.get("command") == command:
+                        if found:
+                            continue
+                        merged = dict(current)
+                        for key, value in handler.items():
+                            merged.setdefault(key, value)
+                        handlers.append(merged)
+                        found = True
+                    else:
+                        handlers.append(current)
+                group["hooks"] = handlers
+                # Preserve even empty groups so unrelated indexes do not shift.
+                groups.append(group)
+            if not found:
+                groups.append({"hooks": [handler]})
             hooks[event] = groups
         files[path] = (json.dumps(config, indent=2, ensure_ascii=False) + "\n").encode()
     for folder in ("scripts", "hooks"):
@@ -50,6 +78,7 @@ def install(home, source):
         # Absolute installed path avoids shell-variable differences between agents.
         body = src.read_text().replace("${CLAUDE_PLUGIN_ROOT}", str(target))
         files[skill_root / src.parent.name / "SKILL.md"] = body.encode()
+    files[target / "codex-permissions.toml"] = snippet([data_root]).encode()
     policy = f"""{START}
 # ai-criteria — shared with Claude Code, Codex and Gemini CLI
 
@@ -93,6 +122,8 @@ Do not automatically roll up, promote, retire, or export existing data just beca
             existing = path.read_text()
             if str(target) not in existing:
                 raise ValueError("Existing skill needs manual reconciliation: " + str(path))
+    if configure_codex_permissions:
+        configure(home, [data_root])
     for path, data in files.items():
         if path.exists() and path.read_bytes() == data:
             continue
@@ -103,7 +134,9 @@ Do not automatically roll up, promote, retire, or export existing data just beca
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         print("installed", path)
-    print("Shared data untouched:", home / ".ai-criteria")
+    print("Shared data untouched:", data_root)
+    print("Codex: skill discovery does not grant writes. Restart after installation and trust hooks in /hooks.")
+    print("Optional data access: --configure-codex-permissions (Python 3.11+). Managed/session policies still apply.")
     if backup.exists():
         print("Backups:", backup)
 
@@ -111,5 +144,6 @@ Do not automatically roll up, promote, retire, or export existing data just beca
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=pathlib.Path, default=pathlib.Path.home())
+    parser.add_argument("--configure-codex-permissions", action="store_true", help="Grant only the shared data directory in legacy Codex workspace-write settings")
     args = parser.parse_args()
-    install(args.home, pathlib.Path(__file__).resolve().parent.parent)
+    install(args.home, pathlib.Path(__file__).resolve().parent.parent, args.configure_codex_permissions)

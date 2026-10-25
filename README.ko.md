@@ -194,6 +194,15 @@ python3 scripts/install_shared.py
 - 훅은 `~/.codex/hooks.json`, `~/.gemini/settings.json`에 합쳐지고, 다시 돌려도 중복되지 않아요.
 - 플러그인이 업데이트되면 Claude Code 세션 시작 때 Codex·Gemini 쪽 복사본도 같이 맞춰져요.
 - Codex는 `/hooks`에서 새 훅을 직접 신뢰해 줘야 돌아가요. 설치기가 대신 승인하지 않아요.
+
+스킬이 보이는 것과 데이터 폴더에 쓸 수 있는 것은 별개예요. 설치기는 이 컴퓨터의 홈 또는 `AI_CRITERIA_HOME` 경로로 `~/.local/share/ai-criteria/codex-permissions.toml`을 만들지만, 승인 정책을 몰래 바꾸거나 전체 접근을 켜지 않아요. 기존 workspace-write 설정에 공유 데이터 폴더만 추가하려면 Python 3.11 이상에서 명시적으로 실행해요.
+
+```bash
+python3 scripts/install_shared.py --configure-codex-permissions
+```
+
+기존 모델·네트워크·승인 정책·다른 쓰기 경로는 유지하고 config.toml을 백업해요. 읽기 전용 모드나 새 이름 있는 권한 프로필을 덮어쓰지는 않아요. 해당 프로필이나 앱 권한 모드를 직접 설정해야 하며, 관리형·세션 정책이 사용자 설정보다 우선할 수도 있어요. Codex를 다시 시작하고 `/hooks`에서 새 훅을 신뢰해 주세요. 대화에서 권한을 준다고 말하는 것만으로 샌드박스가 바뀌지는 않아요. 일반 설치·테스트는 Python 3.9 이상, 선택적인 TOML 권한 병합은 Python 3.11 이상이 필요해요. 개인 사례·말·기준은 저장소에 포함하거나 업로드하지 않아요.
+
 - 같은 이름의 내 스킬이 있으면 덮어쓰지 않고 멈춰요. 기록·말 그래프·기준 데이터는 건드리지 않아요.
 
 </details>
