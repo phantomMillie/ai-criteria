@@ -21,8 +21,12 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ailog.py" log \
   "<gave: the conclusion I produced>" \
   "<actual: the correct value — and where the evidence is (file:line, doc section, frame name)>" \
   "<why: which step, starting from what premise>" \
-  --tag wrong-premise --tag oversimplified-rule
+  --tag wrong-premise --tag oversimplified-rule --back 1
 ```
+
+`--back N`: how many of your answers back the wrong one was (1 = the answer right before this correction).
+Leave it out if you are not sure. The session id is recorded on its own; with both, a gate can be replayed
+on the exact turn later.
 
 ## Rules
 

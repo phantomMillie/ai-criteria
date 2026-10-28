@@ -43,6 +43,23 @@ class Store(unittest.TestCase):
         self.assertNotIn("abc123", c["actual"])
         self.assertNotIn("hunter2", c["why"])
 
+    def test_log_records_where_the_mistake_is(self):
+        saved = os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+        try:
+            os.environ["CLAUDE_CODE_SESSION_ID"] = "sess-1"
+            run(self.root, "log", "gave", "actual", "premise X", "--tag", "x", "--back", "2")
+            run(self.root, "log", "gave", "actual", "premise Y", "--tag", "x", "--session", "sess-2")
+            del os.environ["CLAUDE_CODE_SESSION_ID"]
+            run(self.root, "log", "gave", "actual", "premise Z", "--tag", "x")
+        finally:
+            os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+            if saved is not None:
+                os.environ["CLAUDE_CODE_SESSION_ID"] = saved
+        a, b, c = ailog.read_jsonl(self.root / "inbox.jsonl")
+        self.assertEqual((a["session"], a["back"], a["version"]), ("sess-1", 2, ailog.VERSION))
+        self.assertEqual((b["session"], "back" in b), ("sess-2", False))
+        self.assertEqual(("session" in c, "back" in c), (False, False))
+
     def test_rollup_moves_and_empties_inbox(self):
         self.log(); self.log("premise Y")
         run(self.root, "rollup")

@@ -33,7 +33,7 @@ try:
 except ImportError:  # Windows
     fcntl = None
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 SCHEMA = 1
 
 DEFAULT_TAGS = [
@@ -238,9 +238,9 @@ def norm_tag(t):
     return t.strip().lstrip("#")
 
 
-def make_case(gave, actual, why, tags, project, now=None):
+def make_case(gave, actual, why, tags, project, now=None, session="", back=None):
     now = now or datetime.datetime.now()
-    return {
+    case = {
         "id": now.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4],
         "ts": now.strftime("%Y-%m-%d %H:%M"),
         "project": project,
@@ -248,7 +248,14 @@ def make_case(gave, actual, why, tags, project, now=None):
         "gave": redact(gave.strip()),
         "actual": redact(actual.strip()),
         "why": redact(why.strip()),
+        "version": VERSION,  # the correction detector changed between versions; compare rates within one
     }
+    # Where the mistake is in the transcript, so a gate can be replayed on the exact turn later
+    if session:
+        case["session"] = session
+    if back:
+        case["back"] = back
+    return case
 
 
 def why_unknown(c):
@@ -443,7 +450,8 @@ def cmd_init(a, p):
 
 def cmd_log(a, p):
     ensure_store(p)
-    case = make_case(a.gave, a.actual, a.why, a.tag, a.project or project_name())
+    case = make_case(a.gave, a.actual, a.why, a.tag, a.project or project_name(),
+                     session=a.session or os.environ.get("CLAUDE_CODE_SESSION_ID", ""), back=a.back)
     with locked(p):
         with open(str(p.inbox), "a", encoding="utf-8") as f:
             f.write(json.dumps(case, ensure_ascii=False) + "\n")
@@ -766,6 +774,9 @@ def build_parser():
     s = sub.add_parser("log")
     s.add_argument("gave"); s.add_argument("actual"); s.add_argument("why")
     s.add_argument("--tag", action="append", default=[]); s.add_argument("--project", default="")
+    s.add_argument("--session", default="", help="defaults to CLAUDE_CODE_SESSION_ID")
+    s.add_argument("--back", type=int, default=None,
+                   help="how many answers back the wrong one was (1 = the answer right before the correction)")
     s.set_defaults(fn=cmd_log)
     s = sub.add_parser("hear", help="record what a word of this user's actually meant")
     s.add_argument("phrase"); s.add_argument("meant")

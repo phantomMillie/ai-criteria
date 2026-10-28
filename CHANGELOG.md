@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+- `log` records where the mistake is: `session` (from `CLAUDE_CODE_SESSION_ID`, or `--session`), `--back N` (how many answers back the wrong one was) and the plugin `version`, since the correction detector changed between versions and rates are only comparable within one.
+- `scripts/eval_gate.py` replays a Stop gate over real transcripts: recall on logged cases (`--fixtures`), how often each mode fires on all turns, and a model judge (`--judge haiku`) on a fixed random sample (`--until` keeps reruns on the same turns).
+- `eval_gate.py --labels` scores every mode against hand-checked turns (violations caught, blocks that were violations), and `--rescore` scores earlier judge runs without calling a model. A blocked turn is not a false alarm until a label says so.
+- `hooks/stop-gate.py`: J-5 gate experiment (rule modes and a model judge). Not registered; no mode passed the replay yet.
+
 ## 0.5.1
 - Preserve existing Codex/Gemini hook positions and custom handler settings when merging updates.
 - Register skills in Antigravity global discovery directory (`~/.gemini/config/skills`) and declared manifest (`~/.gemini/config/skills.json`).
