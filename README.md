@@ -270,7 +270,7 @@ What it wrote down is your word, so you get to see it: `"올려" = push to origi
 No, that tangles it. Words are learned only from corrections during real work. An answer given in the abstract ("what does 'clean up' usually mean to you?") disagrees with how you actually use the word later, ends up contested, and only makes the injected list longer. Just work as usual and correct it when it is wrong.
 
 **What about false positives from the correction detector?**<br>
-The hook only raises a short signal on every prompt; it does not filter by keywords, because wording, slang and language differ for every user. The model decides. Plain questions and ordinary requests are ignored, so nothing gets logged.
+The hook only raises a short signal on every prompt; it does not filter by keywords, because wording, slang and language differ for every user. The model decides. Plain questions and ordinary requests are ignored, so nothing gets logged. When this session already has corrections, the hook also hands them back (when the list changes and after a compaction), so the same correction is not needed twice. The project is where the work is, not where the session was opened: the first time a session reads, edits or `cd`s into a repository, that repository's words and criteria come in.
 It fires on pushback wording, including implicit Korean pushback like `~다며`, `~잖아` and `;;`, and when you paste back part of a recent answer with a short reaction.
 
 **How do I turn off the `ai-clarify` note?**<br>

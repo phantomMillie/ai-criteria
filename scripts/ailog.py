@@ -33,7 +33,7 @@ try:
 except ImportError:  # Windows
     fcntl = None
 
-VERSION = "0.5.2"
+VERSION = "0.5.3"
 SCHEMA = 1
 
 DEFAULT_TAGS = [
@@ -229,6 +229,63 @@ def project_name(cwd=None):
     return cwd.name
 
 
+def repo_of(path):
+    """The git repository a path is in (its folder name), or "" when it is in none."""
+    try:
+        path = pathlib.Path(str(path)).expanduser()
+    except Exception:
+        return ""
+    if not path.is_absolute():
+        return ""
+    for d in [path] + list(path.parents):
+        if (d / ".git").exists():
+            return d.name
+    return ""
+
+
+def unscoped(project):
+    """A project name that says nothing about the work: none, or the home folder a session was opened in.
+    What was learned there is shown wherever the session is opened."""
+    return not project or project == pathlib.Path.home().name
+
+
+# Where this session is working. A session opened in ~ that edits ~/work/app is working in `app`;
+# the tool hook writes it down on every file or shell call, `log`/`hear` and SessionStart read it.
+def _session_file(p, session, ext):
+    safe = re.sub(r"[^A-Za-z0-9_-]", "", session or "")[:80]
+    return p.root / "sessions" / (safe + ext) if safe else None
+
+
+def read_work(p, session):
+    path = _session_file(p, session, ".work")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path else {}
+    except (OSError, ValueError):
+        data = {}
+    return {"current": str(data.get("current") or ""),
+            "seen": [s for s in data.get("seen", []) if isinstance(s, str)]}
+
+
+def write_work(p, session, state):
+    path = _session_file(p, session, ".work")
+    if not path:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def work_project(p, session="", cwd=None):
+    """The repository the shell is in; else the one this session last touched; else the folder name."""
+    here = repo_of(cwd or os.getcwd())
+    if here:
+        return here
+    current = read_work(p, session).get("current") if session else ""
+    return current or project_name(cwd)
+
+
 def iso_week(d):
     y, w, _ = d.isocalendar()
     return "%d-W%02d" % (y, w)
@@ -238,6 +295,12 @@ def norm_tag(t):
     return t.strip().lstrip("#")
 
 
+def unlabel(value, field):
+    """`"why: ..."` passed as the why turns into `why: why: ...` in every listing. Drop the echoed label."""
+    value = value.strip()
+    return re.sub(r"^%s\s*[:：]\s*" % field, "", value, flags=re.I).strip() if value else value
+
+
 def make_case(gave, actual, why, tags, project, now=None, session="", back=None):
     now = now or datetime.datetime.now()
     case = {
@@ -245,9 +308,9 @@ def make_case(gave, actual, why, tags, project, now=None, session="", back=None)
         "ts": now.strftime("%Y-%m-%d %H:%M"),
         "project": project,
         "tags": [norm_tag(t) for t in tags if norm_tag(t)] or ["untagged"],
-        "gave": redact(gave.strip()),
-        "actual": redact(actual.strip()),
-        "why": redact(why.strip()),
+        "gave": redact(unlabel(gave, "gave")),
+        "actual": redact(unlabel(actual, "actual")),
+        "why": redact(unlabel(why, "why")),
         "version": VERSION,  # the correction detector changed between versions; compare rates within one
     }
     # Where the mistake is in the transcript, so a gate can be replayed on the exact turn later
@@ -299,6 +362,31 @@ def criteria_text(p, project=None):
     return "\n".join(out).strip()
 
 
+def criteria_for_project_only(p, project):
+    """Only the `### ... @project` items: what a session that moved into this project has not seen yet."""
+    if not p.criteria.exists() or not project:
+        return ""
+    out, keep, skip = [], False, False
+    for line in p.criteria.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            skip = line.startswith("## Retired") or line.startswith("## Pending")
+            keep = False
+            continue
+        if line.startswith("### "):
+            scope = re.search(r"@(\S+)", line)
+            keep = not skip and bool(scope) and scope.group(1) == project
+        if keep and not line.strip().startswith("<!--"):
+            out.append(line)
+    return "\n".join(out).strip()
+
+
+def project_words_only(p, project):
+    """Active words learned in this project alone (global and no-project words are already injected)."""
+    edges = [e for e in lexicon_edges(read_jsonl(p.lexicon), load_config(p))
+             if e["status"] == "active" and e["scope"] != "global" and project in e["projects"]]
+    return "\n".join(format_edge(e) for e in edges)
+
+
 def has_criteria(p):
     return p.criteria.exists() and bool(re.search(r"^### [IJ]-", p.criteria.read_text(encoding="utf-8"), re.M))
 
@@ -316,9 +404,10 @@ def norm_word(s):
     return " ".join((s or "").split()).lower()
 
 
-def make_word(phrase, meant, project, kind="meaning", source="correction", read_as="", after="", on="", now=None):
+def make_word(phrase, meant, project, kind="meaning", source="correction", read_as="", after="", on="", now=None,
+              session=""):
     now = now or datetime.datetime.now()
-    return {
+    row = {
         "id": now.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4],
         "ts": now.strftime("%Y-%m-%d %H:%M"),
         "project": project, "kind": kind, "source": source,
@@ -326,6 +415,9 @@ def make_word(phrase, meant, project, kind="meaning", source="correction", read_
         "read_as": redact(read_as.strip()), "after": redact(after.strip()),
         "on": redact(on.strip()),          # what it was applied to (notes.md, a .py file, a PR ...): not a key
     }
+    if session:
+        row["session"] = session           # so the prompt hook can hand it back for the rest of this session
+    return row
 
 
 def lexicon_edges(rows, cfg):
@@ -371,11 +463,16 @@ def lexicon_edges(rows, cfg):
 
 
 def edge_visible(e, project):
-    return e["scope"] == "global" or project in e["projects"]
+    return e["scope"] == "global" or project in e["projects"] or any(unscoped(x) for x in e["projects"])
 
 
 def format_edge(e):
-    where = "all projects" if e["scope"] == "global" else "@" + (e["projects"][0] if e["projects"] else "?")
+    if e["scope"] == "global":
+        where = "all projects"
+    elif all(unscoped(x) for x in e["projects"]):
+        where = "no project"               # learned in a session opened outside any project: shown everywhere
+    else:
+        where = "@" + e["projects"][0]
     tail = "[%s · %s · %s]" % (e["tier"], e["layer"], where)
     if e.get("on"):
         tail += "  (on: %s)" % ", ".join(e["on"][-3:])
@@ -450,8 +547,9 @@ def cmd_init(a, p):
 
 def cmd_log(a, p):
     ensure_store(p)
-    case = make_case(a.gave, a.actual, a.why, a.tag, a.project or project_name(),
-                     session=a.session or os.environ.get("CLAUDE_CODE_SESSION_ID", ""), back=a.back)
+    session = a.session or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    case = make_case(a.gave, a.actual, a.why, a.tag, a.project or work_project(p, session),
+                     session=session, back=a.back)
     with locked(p):
         with open(str(p.inbox), "a", encoding="utf-8") as f:
             f.write(json.dumps(case, ensure_ascii=False) + "\n")
@@ -465,7 +563,9 @@ def cmd_hear(a, p):
     if a.kind == "cost" and not a.on.strip():
         sys.exit('a cost entry needs --on <target>: "don\'t ask" was said about one thing (build/, this repo\'s main), '
                  'not about every delete or push')
-    row = make_word(a.phrase, a.meant, a.project or project_name(), a.kind, a.source, a.read_as, a.after, a.on)
+    session = a.session or os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    row = make_word(a.phrase, a.meant, a.project or work_project(p, session), a.kind, a.source, a.read_as,
+                    a.after, a.on, session=session)
     with locked(p):
         new = not p.lexicon.exists()
         with open(str(p.lexicon), "a", encoding="utf-8") as f:
@@ -785,6 +885,7 @@ def build_parser():
     s.add_argument("--on", default="", help="what it was applied to: notes.md, a .py file, a PR (shown, not a key)")
     s.add_argument("--kind", choices=WORD_KINDS, default="meaning")
     s.add_argument("--source", choices=WORD_SOURCES, default="correction")
+    s.add_argument("--session", default="", help="defaults to CLAUDE_CODE_SESSION_ID")
     s.add_argument("--project", default=""); s.set_defaults(fn=cmd_hear)
     s = sub.add_parser("lexicon", help="what this user's words mean, by layer")
     s.add_argument("--phrase", default=""); s.add_argument("--project", default="")

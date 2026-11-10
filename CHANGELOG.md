@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3
+- The same correction no longer has to be given twice in one session. The SessionStart injection (clarify note, learned words, criteria) ran only on `startup`, so every compaction summarized it away and nothing put it back; long sessions compacted 3–4 times and logged ~20 cases each. It now runs on `startup|clear|compact` (not `resume`, whose transcript already carries it). The inbox nudge and the shared-install sync stay startup-only.
+- The prompt hook hands back what was already corrected in this session (`<ai-criteria-session>`: the newest 6 `why`s and the words `hear`d), matched by `session_id`. It goes out when the list changes and once after a compaction or `/clear`, not on every prompt.
+- `hear` records the session (`CLAUDE_CODE_SESSION_ID`, or `--session`).
+- Wherever a session is opened, the work's project is found. The project was the folder the session was opened in, so a session opened in `~` that worked in `~/x/app` never saw what was learned in `app`, and logged its cases under the home folder. A new PostToolUse hook (`hooks/work-project.py`) reads the paths each file or shell call touched; the first time the session works in a repository it hands over that repository's words and `@repo` criteria, and writes it down so `log`/`hear` record under it and a compaction re-injects it.
+- Words learned in a session opened outside any project (the home folder) show as `no project` and are found in every project.
+- `log` drops an echoed field label (`"why: ..."` passed as the why no longer reads `why: why: ...`).
+
 ## 0.5.2
 - `log` records where the mistake is: `session` (from `CLAUDE_CODE_SESSION_ID`, or `--session`), `--back N` (how many answers back the wrong one was) and the plugin `version`, since the correction detector changed between versions and rates are only comparable within one.
 - `scripts/eval_gate.py` replays a Stop gate over real transcripts: recall on logged cases (`--fixtures`), how often each mode fires on all turns, and a model judge (`--judge haiku`) on a fixed random sample (`--until` keeps reruns on the same turns).

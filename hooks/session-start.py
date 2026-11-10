@@ -2,6 +2,7 @@
 # At session start, inject the clarify step and the current input/judgment criteria into the context.
 # Criteria are skipped when there are none (never injects an empty shell as noise).
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -34,14 +35,49 @@ def sync_shared_install():
         pass        # a failed sync must never block the session
 
 
+def start_payload():
+    try:
+        import json
+        if sys.stdin is None or sys.stdin.isatty():      # run by hand: no payload to wait for
+            return {}
+        data = json.load(sys.stdin)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def forget_session_block(p, session):
+    """After a compaction or /clear the per-session corrections are gone from context: let the next
+    prompt hand them back."""
+    safe = re.sub(r"[^A-Za-z0-9_-]", "", session or "")[:80]
+    if safe:
+        try:
+            (p.root / "sessions" / (safe + ".seen")).unlink()
+        except OSError:
+            pass
+
+
 try:
     import ailog
 
-    sync_shared_install()
+    payload = start_payload()
+    # startup / clear / compact. After a compaction the injected words and criteria are summarized away,
+    # so the hook runs again then; only the one-off steps stay on a real startup.
+    source = str(payload.get("source") or "startup")
+    if source == "startup":
+        sync_shared_install()
 
     p = ailog.Paths()
+    session = str(payload.get("session_id") or "")
+    forget_session_block(p, session)
     cfg = ailog.load_config(p)
-    project = ailog.project_name()
+    # Where the work is, not where the session was opened: after a compaction in a session opened in ~,
+    # the repository it has been working in.
+    project = ailog.work_project(p, session)
+    if session:
+        state = ailog.read_work(p, session)
+        ailog.write_work(p, session, {"current": ailog.repo_of(pathlib.Path.cwd()) or state["current"],
+                                      "seen": [project]})     # context was just (re)built for this project
     parts = []
     if cfg["clarify_reminder"]:
         parts.append(
@@ -77,7 +113,7 @@ try:
                 "criterion's applies-when / void-when. If an input criterion is unmet, ask the user for "
                 "the missing input first instead of guessing.\n\n" + body)
     pending = len(ailog.read_jsonl(p.inbox)) if p.inbox.exists() else 0
-    if pending >= cfg["rollup_nudge_at"]:
+    if source == "startup" and pending >= cfg["rollup_nudge_at"]:
         parts.append("ai-criteria: %d logged mistakes are waiting in the inbox. At a natural pause, "
                      "suggest `/ai-rollup` then `/ai-criteria`." % pending)
     if parts:
